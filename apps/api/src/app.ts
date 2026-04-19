@@ -54,23 +54,85 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // API Routes (Vite proxy strips /api prefix)
   app.get('/settings', async () => {
-    const destRoot = process.env.DESTINATION_ROOT || './dev-library';
     const rawMode = process.env.SORT_MODE || 'Tinder';
-    const isPlus = rawMode === '4-way' || rawMode === 'Tinder Plus';
+    const isPlus = rawMode === 'TinderPlus';
 
-    return {
-      mode: isPlus ? 'Tinder Plus' : 'Tinder',
-      dryRun: process.env.DRY_RUN_MODE === 'true',
-      sourceRoot,
-      destinations: {
-        left: { label: 'Keep', path: path.resolve(destRoot, 'keep') },
-        right: { label: 'Review', path: path.resolve(destRoot, 'review') },
-        up: { label: 'Up', path: path.resolve(destRoot, 'up') },
-        down: { label: 'Down', path: path.resolve(destRoot, 'down') },
-        trash: { label: 'Trash', path: path.resolve(process.env.TRASH_PATH || path.join(destRoot, 'trash')) },
+    const getLabel = (envVar: string | undefined, defaultPath: string | null) => {
+      const trimmed = envVar?.trim();
+      if (trimmed && trimmed.length > 0) return trimmed;
+      return defaultPath ? path.basename(defaultPath) : 'Unknown';
+    };
+
+    const checkExists = async (p: string) => {
+      try {
+        await fs.access(p);
+        return true;
+      } catch {
+        return false;
       }
     };
-  });
+
+    const resolvePath = (p: string | undefined) => {
+      if (!p) return null;
+      return path.isAbsolute(p) ? p : path.resolve(projectRoot, p);
+    };
+
+    const leftPath = resolvePath(process.env.DESTINATION_LEFT);
+    const rightPath = resolvePath(process.env.DESTINATION_RIGHT);
+    const upPath = resolvePath(process.env.DESTINATION_UP);
+    const downPath = resolvePath(process.env.DESTINATION_DOWN);
+    const trashPath = resolvePath(process.env.TRASH_PATH);
+
+    const result = {
+      mode: isPlus ? 'TinderPlus' : 'Tinder',
+      dryRun: process.env.DRY_RUN_MODE === 'true',
+      sourceRoot: {
+        path: sourceRoot,
+        exists: await checkExists(sourceRoot)
+      },
+      destinations: {
+        left: {
+          label: getLabel(process.env.DESTINATION_LEFT_LABEL, leftPath),
+          path: leftPath,
+          exists: leftPath ? await checkExists(leftPath) : false,
+          isConfigured: !!leftPath
+        },
+        right: {
+          label: getLabel(process.env.DESTINATION_RIGHT_LABEL, rightPath),
+          path: rightPath,
+          exists: rightPath ? await checkExists(rightPath) : false,
+          isConfigured: !!rightPath
+        },
+        up: {
+          label: getLabel(process.env.DESTINATION_UP_LABEL, upPath),
+          path: upPath,
+          exists: upPath ? await checkExists(upPath) : false,
+          isConfigured: !!upPath
+        },
+        down: {
+          label: getLabel(process.env.DESTINATION_DOWN_LABEL, downPath),
+          path: downPath,
+          exists: downPath ? await checkExists(downPath) : false,
+          isConfigured: !!downPath
+        },
+        trash: {
+          label: getLabel(process.env.DESTINATION_TRASH_LABEL, trashPath),
+          path: trashPath,
+          exists: trashPath ? await checkExists(trashPath) : true,
+          isDelete: !trashPath,
+          isConfigured: true // Trash is always "active" (either move or delete)
+        },
+      },
+      queue: {
+        softThreshold: Number(process.env.QUEUE_SOFT_THRESHOLD) || 25,
+        hardThreshold: Number(process.env.QUEUE_HARD_THRESHOLD) || 50,
+        resumeThreshold: Number(process.env.QUEUE_RESUME_THRESHOLD) || 10,
+      }
+    };
+
+    app.log.info({ msg: 'Resolved settings', destinations: result.destinations });
+    return result;
+    });
 
   app.get('/images/next', async () => {
     try {

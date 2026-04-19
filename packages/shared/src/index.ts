@@ -62,9 +62,9 @@ export interface ActionIntent {
   imageId: string;
   sourcePath: string;
   destinationPath: string;
-  actionType: "move" | "copy" | "trash";
-  direction: SwipeDirection;
-  status: "pending" | "processing" | "completed" | "failed";
+  actionType: "move" | "copy" | "trash" | "event";
+  direction: SwipeDirection | "system";
+  status: "pending" | "processing" | "completed" | "failed" | "info";
   createdAt: string;
   errorMessage?: string;
 }

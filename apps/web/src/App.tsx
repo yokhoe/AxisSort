@@ -6,12 +6,15 @@
  * Notes: Implements the core UX layout (gear menu top-left, trash top-right, photo stack center).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Trash2 } from 'lucide-react';
-import { ImageRecord, SwipeDirection } from '@coord-sort/shared';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Settings, Trash2, AlertCircle, Sun, Moon, Monitor } from 'lucide-react';
+import { ImageRecord, SwipeDirection, ActionIntent } from '@coord-sort/shared';
 import { SwipeCard } from './components/SwipeCard';
 import { MetadataDrawer } from './components/MetadataDrawer';
 import { SettingsDrawer } from './components/SettingsDrawer';
+import { PauseOverlay } from './components/PauseOverlay';
+import { HistoryDrawer } from './components/HistoryDrawer';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const App: React.FC = () => {
   const [images, setImages] = useState<ImageRecord[]>([]);
@@ -19,6 +22,36 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [history, setHistory] = useState<ActionIntent[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resetTrigger, setResetTrigger] = useState(0);
+
+  // Initialize theme from localStorage immediately
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    return (localStorage.getItem('coord-sort-theme') as any) || 'dark';
+  });
+
+  // Calculate if dark mode should be active
+  const isDarkActive = useMemo(() => {
+    if (theme === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return theme === 'dark';
+  }, [theme]);
+
+  // Apply theme to HTML element
+  useEffect(() => {
+    const html = window.document.documentElement;
+    if (isDarkActive) {
+      html.classList.add('dark');
+    } else {
+      html.classList.remove('dark');
+    }
+    localStorage.setItem('coord-sort-theme', theme);
+  }, [isDarkActive, theme]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -43,66 +76,120 @@ const App: React.FC = () => {
   }, [fetchData]);
 
   const handleSwipe = useCallback((direction: SwipeDirection) => {
-    const dest = settings?.destinations?.[direction]?.label || direction;
-    console.log(`Swiped: ${direction} (${dest}) for ${images[0]?.filename}`);
-    // For now, just remove the image from the list to show the next one
+    const currentPhoto = images[0];
+    if (!currentPhoto) return;
+
+    const destConfig = settings?.destinations?.[direction];
+
+    if (destConfig) {
+      if (!destConfig.isConfigured) {
+        setErrorMessage(`The ${direction} sorting direction is not configured in your .env file.`);
+        setResetTrigger(prev => prev + 1);
+        return;
+      }
+
+      if (!destConfig.exists && !destConfig.isDelete) {
+        setErrorMessage(`Destination "${destConfig.label}" (${destConfig.path}) is not accessible. Please ensure the path is correctly set and mounted.`);
+        setResetTrigger(prev => prev + 1);
+        return;
+      }
+    }
+
+    const destPath = destConfig?.path || direction;
+
+    const newAction: ActionIntent = {
+      id: Math.random().toString(36).substr(2, 9),
+      imageId: currentPhoto.id,
+      sourcePath: currentPhoto.filename,
+      destinationPath: destConfig?.isDelete ? 'SYSTEM DELETE' : destPath,
+      actionType: direction === 'trash' && destConfig?.isDelete ? 'event' : (direction === 'trash' ? 'trash' : 'move'),
+      direction,
+      status: 'completed',
+      createdAt: new Date().toISOString()
+    };
+
+    setHistory(prev => [...prev, newAction]);
+    setPendingCount(prev => prev + 1);
     setImages((prev) => prev.slice(1));
   }, [images, settings]);
 
-  // Keyboard shortcuts
+  const hardThreshold = settings?.queue?.hardThreshold || 50;
+  const resumeThreshold = settings?.queue?.resumeThreshold || 10;
+
+  useEffect(() => {
+    if (pendingCount >= hardThreshold && !isSyncing) {
+      setIsSyncing(true);
+      const eventAction: ActionIntent = {
+        id: `sys-${Date.now()}`,
+        imageId: 'system',
+        sourcePath: `Queue reached hard threshold of ${hardThreshold}`,
+        destinationPath: 'Back-pressure pause triggered',
+        actionType: 'event',
+        direction: 'system',
+        status: 'info',
+        createdAt: new Date().toISOString()
+      };
+      setHistory(prev => [...prev, eventAction]);
+    }
+
+    if (isSyncing) {
+      const timer = setTimeout(() => {
+        setPendingCount(prev => Math.max(0, prev - 5));
+        if (pendingCount <= resumeThreshold) {
+          setIsSyncing(false);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingCount, isSyncing, hardThreshold, resumeThreshold]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (images.length === 0) return;
+      if (images.length === 0 || isSyncing || isDrawerOpen || isSettingsOpen || isHistoryOpen || errorMessage) return;
 
       switch (e.key) {
-        case 'ArrowLeft':
-          handleSwipe('left');
-          break;
-        case 'ArrowRight':
-          handleSwipe('right');
-          break;
-        case 't':
-        case 'T':
-        case 'Backspace':
-          handleSwipe('trash');
-          break;
+        case 'ArrowLeft': handleSwipe('left'); break;
+        case 'ArrowRight': handleSwipe('right'); break;
+        case 'ArrowUp': if (settings?.mode === 'TinderPlus') handleSwipe('up'); break;
+        case 'ArrowDown': if (settings?.mode === 'TinderPlus') handleSwipe('down'); break;
+        case 't': case 'T': case 'Backspace': handleSwipe('trash'); break;
+        case 'h': case 'H': setIsHistoryOpen(prev => !prev); break;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [images, handleSwipe]);
+  }, [images, handleSwipe, isSyncing, isDrawerOpen, isSettingsOpen, isHistoryOpen, settings?.mode, errorMessage]);
 
   const currentImage = images[0];
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-white overflow-hidden relative">
+    <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-500 overflow-hidden">
       {/* Floating Top Controls & Branding */}
       <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between z-40">
         <button
-          className="p-3 bg-slate-800/40 hover:bg-slate-700/60 rounded-2xl transition-all text-slate-300 backdrop-blur-md border border-white/5 shadow-xl"
+          className="p-3 bg-white/60 dark:bg-slate-800/40 hover:bg-white/80 dark:hover:bg-slate-700/60 rounded-2xl transition-all text-slate-600 dark:text-slate-300 backdrop-blur-md border border-black/5 dark:border-white/5 shadow-xl"
           onClick={() => setIsSettingsOpen(true)}
         >
           <Settings size={24} />
         </button>
 
-        {/* Integrated Watermark Branding */}
         <div className="flex flex-col items-center opacity-30 pointer-events-none select-none">
-          <h1 className="text-xl font-black tracking-[0.2em] leading-none text-slate-100">COORD-SORT</h1>
-          <span className="text-[9px] font-bold tracking-[0.4em] mt-1.5 text-slate-400">VERSION 1.0.0</span>
+          <h1 className="text-xl font-black tracking-[0.2em] leading-none text-slate-900 dark:text-slate-100 uppercase">COORD-SORT</h1>
+          <span className="text-[9px] font-bold tracking-[0.4em] mt-1.5 text-slate-500 dark:text-slate-400">VERSION 1.0.0</span>
         </div>
 
         <button
-          className="p-3 bg-slate-800/40 hover:bg-slate-700/60 rounded-2xl transition-all text-red-400 backdrop-blur-md border border-white/5 shadow-xl"
+          className="p-3 bg-white/60 dark:bg-slate-800/40 hover:bg-white/80 dark:hover:bg-slate-700/60 rounded-2xl transition-all text-red-500 dark:text-red-400 backdrop-blur-md border border-black/5 dark:border-white/5 shadow-xl"
           onClick={() => handleSwipe('trash')}
         >
           <Trash2 size={24} />
         </button>
       </div>
+
       {/* Main Content Area */}
       <main className="flex-1 relative flex items-center justify-center z-10">
         {loading ? (
-          <div className="text-slate-500 animate-pulse font-bold tracking-widest uppercase text-xs">Initializing...</div>
+          <div className="text-slate-400 dark:text-slate-500 animate-pulse font-bold tracking-widest uppercase text-xs">Initializing...</div>
         ) : currentImage ? (
           <div className="relative flex items-center justify-center w-full h-full p-4 sm:p-8">
             <SwipeCard
@@ -112,16 +199,19 @@ const App: React.FC = () => {
               onClick={() => setIsDrawerOpen(true)}
               leftLabel={settings?.destinations?.left?.label}
               rightLabel={settings?.destinations?.right?.label}
+              upLabel={settings?.destinations?.up?.label}
+              downLabel={settings?.destinations?.down?.label}
+              resetTrigger={resetTrigger}
             />
           </div>
         ) : (
-          <div className="w-full max-w-md aspect-[3/4] bg-slate-900/50 rounded-3xl flex items-center justify-center border border-white/5 backdrop-blur-sm">
+          <div className="w-full max-w-md aspect-[3/4] bg-white dark:bg-slate-900/50 rounded-3xl flex items-center justify-center border border-black/5 dark:border-white/5 backdrop-blur-sm shadow-xl">
             <div className="text-center p-8">
-              <p className="text-slate-400 text-lg font-semibold uppercase tracking-tight">Stack Depleted</p>
-              <p className="text-slate-600 text-xs mt-2 uppercase tracking-widest">Add more files to source</p>
+              <p className="text-slate-600 dark:text-slate-400 text-lg font-semibold uppercase tracking-tight">Stack Depleted</p>
+              <p className="text-slate-400 dark:text-slate-600 text-xs mt-2 uppercase tracking-widest">Add more files to source</p>
               <button
                 onClick={fetchData}
-                className="mt-8 px-6 py-2.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded-xl transition-all text-xs font-bold uppercase tracking-widest"
+                className="mt-8 px-6 py-2.5 bg-blue-600/10 dark:bg-blue-600/20 hover:bg-blue-600/20 dark:hover:bg-blue-600/40 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-xl transition-all text-xs font-bold uppercase tracking-widest"
               >
                 Sync Library
               </button>
@@ -141,21 +231,73 @@ const App: React.FC = () => {
         settings={settings}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        theme={theme}
+        setTheme={setTheme}
       />
 
-      {/* Floating Status Bar */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 flex justify-between items-end pointer-events-none z-40">
-        <div className="px-4 py-2 bg-slate-900/40 backdrop-blur-md rounded-full border border-white/5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-          {images.length} REMAINING
-        </div>
+      {/* History Overlay */}
+      <HistoryDrawer
+        history={history}
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+      />
 
-        <div className="flex flex-col gap-2 items-end">
-          <div className="px-4 py-2 bg-slate-900/40 backdrop-blur-md rounded-full border border-white/5 flex items-center gap-2">
+      {/* Pause/Syncing Overlay */}
+      <PauseOverlay
+        isVisible={isSyncing}
+        message={`Writing ${pendingCount} pending actions to disk...`}
+        progress={100 - (pendingCount / hardThreshold * 100)}
+      />
+
+      {/* Error Modal */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 border-2 border-red-500/50 rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6 max-w-sm text-center"
+            >
+              <div className="p-4 bg-red-500/20 rounded-full text-red-500">
+                <AlertCircle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Path Error</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{errorMessage}</p>
+              </div>
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all text-xs uppercase tracking-widest"
+              >
+                Acknowledge
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Status Bar */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 flex justify-between items-end z-40 text-slate-900 dark:text-white">
+        <button
+          onClick={() => setIsHistoryOpen(true)}
+          className="px-4 py-2 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/5 text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-500 uppercase hover:bg-white/80 dark:hover:bg-slate-800/60 transition-all pointer-events-auto shadow-lg"
+        >
+          {images.length} REMAINING • {history.length} SORTED
+        </button>
+
+        <div className="flex flex-col gap-2 items-end pointer-events-none">
+          <div className="px-4 py-2 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/5 flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-            <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">LIVE SCAN</span>
+            <span className="text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-400 uppercase">LIVE SCAN</span>
           </div>
           {settings?.dryRun && (
-            <div className="px-4 py-2 bg-orange-500/10 backdrop-blur-md rounded-full border border-orange-500/20 text-[10px] font-bold tracking-wider text-orange-400/80 uppercase">
+            <div className="px-4 py-2 bg-orange-500/10 backdrop-blur-md rounded-full border border-orange-500/20 text-[10px] font-bold tracking-wider text-orange-600 dark:text-orange-400/80 uppercase">
               DRY RUN ACTIVE
             </div>
           )}
@@ -163,6 +305,5 @@ const App: React.FC = () => {
       </div>
     </div>
   );
-
 };
 export default App;
