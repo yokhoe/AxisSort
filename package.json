@@ -1,0 +1,21 @@
+{
+  "name": "coord-sort",
+  "version": "1.0.0",
+  "description": "A Tinder-style image sorting web application.",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev -- --host",
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
