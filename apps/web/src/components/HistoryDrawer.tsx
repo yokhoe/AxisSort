@@ -27,42 +27,42 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({ history, isOpen, o
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm touch-none"
+        className="fixed inset-0 bg-black/20 dark:bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-md touch-none"
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0, x: 20 }}
           animate={{ scale: 1, opacity: 1, x: 0 }}
           exit={{ scale: 0.95, opacity: 0, x: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-slate-900 w-full max-w-md h-[80vh] rounded-3xl border border-black/5 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden transition-colors duration-300"
+          className="bg-white/80 dark:bg-slate-900/80 w-full max-w-md h-[80vh] rounded-[2.5rem] border border-white/20 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden backdrop-blur-2xl transition-colors duration-300"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-black/5 dark:border-white/5 bg-slate-50 dark:bg-slate-800/30">
+          <div className="flex items-center justify-between p-7 border-b border-black/5 dark:border-white/5 bg-white/40 dark:bg-slate-800/30">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg text-purple-600 dark:text-purple-400">
+              <div className="p-2.5 bg-purple-500/10 dark:bg-purple-500/20 rounded-xl text-purple-600 dark:text-purple-400">
                 <History size={20} />
               </div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Session History</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Session History</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+            <button onClick={onClose} className="p-2.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors text-slate-400">
               <X size={24} />
             </button>
           </div>
 
           {/* History List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {history.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
-                <div className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-full text-slate-400 dark:text-slate-600">
-                  <Clock size={32} />
+              <div className="h-full flex flex-col items-center justify-center text-center p-10 space-y-5">
+                <div className="p-6 bg-white/40 dark:bg-slate-800/50 rounded-full text-slate-300 dark:text-slate-700">
+                  <Clock size={48} />
                 </div>
-                <p className="text-sm text-slate-500 font-medium">No actions performed yet this session.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">No actions performed yet this session.</p>
               </div>
             ) : (
               [...history].reverse().map((action) => (
                 <div
                   key={action.id}
-                  className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-black/5 dark:border-white/5 flex flex-col gap-3 group hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
+                  className="p-4 bg-white/40 dark:bg-slate-800/30 rounded-2xl border border-black/5 dark:border-white/5 flex flex-col gap-3 group hover:bg-white/60 dark:hover:bg-slate-800/50 transition-colors shadow-sm"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({ history, isOpen, o
                   <div className="flex flex-col gap-1">
                     <span
                       title={action.sourcePath}
-                      className={`text-xs font-bold truncate ${action.actionType === 'event' ? 'text-blue-800 dark:text-blue-200' : 'text-slate-700 dark:text-slate-200'}`}
+                      className={`text-xs font-bold truncate tracking-tight ${action.actionType === 'event' ? 'text-blue-800 dark:text-blue-200' : 'text-slate-700 dark:text-slate-200'}`}
                     >
                       {action.sourcePath}
                     </span>
@@ -111,16 +111,6 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({ history, isOpen, o
                 </div>
               ))
             )}
-          </div>
-
-          {/* Footer */}
-          <div className="p-6 bg-slate-50 dark:bg-slate-800/30 border-t border-black/5 dark:border-white/5">
-            <button
-              onClick={onClose}
-              className="w-full py-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-300 rounded-xl font-bold transition-colors text-xs uppercase tracking-widest border border-black/5 dark:border-white/5 shadow-sm"
-            >
-              Close Log
-            </button>
           </div>
         </motion.div>
       </motion.div>

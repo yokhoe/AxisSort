@@ -40,6 +40,15 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
   const y = useMotionValue(0);
   const [isSwiped, setIsSwiped] = useState(false);
 
+  // Reset card state when parent triggers a reset (e.g., on path error)
+  React.useEffect(() => {
+    if (resetTrigger > 0) {
+      setIsSwiped(false);
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 20 });
+      animate(y, 0, { type: 'spring', stiffness: 300, damping: 20 });
+    }
+  }, [resetTrigger, x, y]);
+
   // Fallbacks for display
   const displayLeft = leftLabel || 'LEFT';
   const displayRight = rightLabel || 'RIGHT';
@@ -116,13 +125,15 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
         }
       }}
       whileTap={{ scale: 1.02 }}
-      className="relative w-[90vw] max-w-lg bg-white dark:bg-slate-800 rounded-3xl shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing flex items-center justify-center border border-black/5 dark:border-white/5 transition-colors duration-300"
+      className="relative w-[90vw] max-w-lg bg-slate-50 dark:bg-slate-800 rounded-3xl photo-stack-card overflow-hidden cursor-grab active:cursor-grabbing flex items-center justify-center border border-black/5 dark:border-white/5 transition-colors duration-300"
     >
       <motion.img
         layoutId={`image-${image.id}`}
         src={`/images/${image.filename}`}
         alt={image.filename}
-        className="w-full h-auto max-h-[70vh] object-contain select-none pointer-events-none"
+        className="w-full h-auto max-h-[70vh] object-contain select-none pointer-events-none rounded-[inherit]"
+        style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
+        transition={{ type: 'tween', duration: 0.5, ease: "circOut" }}
       />
 
       {/* Visual Swipe Indicators (Feedback Labels) */}
@@ -166,10 +177,10 @@ export const SwipeCard: React.FC<SwipeCardProps> = ({
         </div>
       </motion.div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-slate-900/40 backdrop-blur-md border-t border-white/10">
         <p
           title={image.filename}
-          className="text-xs truncate font-medium text-slate-300 text-center"
+          className="text-[10px] truncate font-bold text-white/90 text-center uppercase tracking-widest"
         >
           {image.filename}
         </p>

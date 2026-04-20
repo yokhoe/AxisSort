@@ -163,7 +163,15 @@ const App: React.FC = () => {
   const currentImage = images[0];
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-500 overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-500 overflow-hidden">
+      {/* Animated Background Layer */}
+      <motion.div
+        initial={{ opacity: 0, scale: 1.05 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 2, ease: "easeOut" }}
+        className="absolute inset-0 bg-app-gradient pointer-events-none"
+      />
+
       {/* Floating Top Controls & Branding */}
       <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between z-40">
         <button
@@ -292,12 +300,12 @@ const App: React.FC = () => {
         </button>
 
         <div className="flex flex-col gap-2 items-end pointer-events-none">
-          <div className="px-4 py-2 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/5 flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-            <span className="text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-400 uppercase">LIVE SCAN</span>
+          <div className="px-4 py-2 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/10 flex items-center gap-2 shadow-lg">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
+            <span className="text-[10px] font-black tracking-wider text-slate-700 dark:text-slate-400 uppercase">LIVE SCAN</span>
           </div>
           {settings?.dryRun && (
-            <div className="px-4 py-2 bg-orange-500/10 backdrop-blur-md rounded-full border border-orange-500/20 text-[10px] font-bold tracking-wider text-orange-600 dark:text-orange-400/80 uppercase">
+            <div className="px-4 py-2 bg-orange-500/10 dark:bg-orange-500/10 backdrop-blur-md rounded-full border border-orange-500/40 dark:border-orange-500/20 text-[10px] font-black tracking-wider text-orange-700 dark:text-orange-400 uppercase shadow-lg">
               DRY RUN ACTIVE
             </div>
           )}

@@ -46,3 +46,6 @@ data/*.db-wal
 # OS
 .DS_Store
 Thumbs.db
+
+# LLM related
+.shell_output/*

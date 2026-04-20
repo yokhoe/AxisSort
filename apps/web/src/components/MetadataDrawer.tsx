@@ -156,15 +156,32 @@ export const MetadataDrawer: React.FC<MetadataDrawerProps> = ({ image, isOpen, o
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-0 sm:p-4 backdrop-blur-sm touch-none"
+        className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 touch-none overflow-hidden"
       >
+        {/* Cinematic Frosted Background (Blurred version of the image itself) */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
+          initial={{ opacity: 0, scale: 1.1 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          exit={{ opacity: 0, scale: 1.1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="absolute inset-0 z-0 pointer-events-none"
+          style={{ willChange: 'transform, opacity' }}
+        >
+          <img
+            src={`/images/${image.filename}`}
+            alt=""
+            className="w-full h-full object-cover blur-[60px] opacity-40 dark:opacity-30 saturate-150"
+            style={{ backfaceVisibility: 'hidden' }}
+          />
+          <div className="absolute inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-md" />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 40, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 40, scale: 0.95 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-white dark:bg-slate-800 w-full max-w-lg h-full sm:h-auto sm:rounded-3xl border-x sm:border border-black/5 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden transition-colors duration-300"
+          className="relative z-10 bg-white/90 dark:bg-slate-900/90 w-full max-w-lg h-full sm:h-auto sm:rounded-[2.5rem] border-x sm:border border-white/20 dark:border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden backdrop-blur-2xl transition-colors duration-300"
         >
           {/* Close Button Header (Floating) */}
           <div className="absolute top-4 right-4 z-20">
@@ -176,18 +193,26 @@ export const MetadataDrawer: React.FC<MetadataDrawerProps> = ({ image, isOpen, o
             </button>
           </div>
 
-          {/* Image Preview (Expanding from photo stack) */}
-          <div className="w-full sm:flex-none flex items-center justify-center relative bg-slate-100 dark:bg-slate-800 overflow-hidden">
+          {/* Image Preview (Expanding from photo stack with dissolve reveal) */}
+          <div className="w-full sm:flex-none flex items-center justify-center relative bg-slate-200 dark:bg-slate-950 overflow-hidden rounded-t-[2.5rem]">
             <motion.img
               layoutId={`image-${image.id}`}
               src={`/images/${image.filename}`}
               alt={image.filename}
-              className="w-full h-auto max-h-[70vh] object-contain"
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="w-full h-auto max-h-[70vh] object-contain relative z-0 rounded-t-[2.5rem]"
+              style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
+              transition={{ type: 'tween', duration: 0.5, ease: "circOut" }}
             />
-          </div>
 
-          {/* Bare Essentials Info List */}
+            {/* The Dissolve/Reveal Layer */}
+            <motion.div
+              initial={{ opacity: 1, backdropFilter: "blur(20px)" }}
+              animate={{ opacity: 0, backdropFilter: "blur(0px)" }}
+              transition={{ delay: 0.1, duration: 0.6, ease: "easeInOut" }}
+              className="absolute inset-0 z-10 bg-white/20 dark:bg-black/20 pointer-events-none rounded-t-[2.5rem]"
+              style={{ willChange: 'opacity, backdrop-filter' }}
+            />
+          </div>          {/* Bare Essentials Info List */}
           <motion.div
             initial="hidden"
             animate="show"
@@ -237,16 +262,6 @@ export const MetadataDrawer: React.FC<MetadataDrawerProps> = ({ image, isOpen, o
               </div>
             )}
           </motion.div>
-
-          {/* Simple Footer */}
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/30 border-t border-black/5 dark:border-white/5 flex justify-end mt-auto sm:mt-0">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest transition-colors border border-black/5 dark:border-slate-700"
-            >
-              Close
-            </button>
-          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
