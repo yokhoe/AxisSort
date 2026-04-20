@@ -76,6 +76,8 @@ const App: React.FC = () => {
   }, [fetchData]);
 
   const handleSwipe = useCallback((direction: SwipeDirection) => {
+    if (isSyncing) return;
+
     const currentPhoto = images[0];
     if (!currentPhoto) return;
 
@@ -111,16 +113,20 @@ const App: React.FC = () => {
     setHistory(prev => [...prev, newAction]);
     setPendingCount(prev => prev + 1);
     setImages((prev) => prev.slice(1));
-  }, [images, settings]);
+  }, [images, settings, isSyncing]);
 
+  const softThreshold = settings?.queue?.softThreshold || 25;
   const hardThreshold = settings?.queue?.hardThreshold || 50;
   const resumeThreshold = settings?.queue?.resumeThreshold || 10;
+  const [syncMessage, setSyncMessage] = useState<string>('');
 
   useEffect(() => {
+    // Hard Threshold: Full back-pressure block
     if (pendingCount >= hardThreshold && !isSyncing) {
       setIsSyncing(true);
+      setSyncMessage('Saving your changes... back in a second.');
       const eventAction: ActionIntent = {
-        id: `sys-${Date.now()}`,
+        id: `sys-hard-${Date.now()}`,
         imageId: 'system',
         sourcePath: `Queue reached hard threshold of ${hardThreshold}`,
         destinationPath: 'Back-pressure pause triggered',
@@ -131,18 +137,25 @@ const App: React.FC = () => {
       };
       setHistory(prev => [...prev, eventAction]);
     }
+    // Soft Threshold: Proactive "Slow Down" prompt
+    else if (pendingCount >= softThreshold && !isSyncing) {
+      setIsSyncing(true);
+      setSyncMessage("You're fast! Just letting the disk catch up...");
+    }
 
     if (isSyncing) {
       const timer = setTimeout(() => {
-        setPendingCount(prev => Math.max(0, prev - 5));
+        const drainAmount = Math.max(5, Math.floor(hardThreshold * 0.1));
+        setPendingCount(prev => Math.max(0, prev - drainAmount));
+
         if (pendingCount <= resumeThreshold) {
           setIsSyncing(false);
+          setSyncMessage('');
         }
-      }, 300);
+      }, 200);
       return () => clearTimeout(timer);
     }
-  }, [pendingCount, isSyncing, hardThreshold, resumeThreshold]);
-
+  }, [pendingCount, isSyncing, softThreshold, hardThreshold, resumeThreshold]);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (images.length === 0 || isSyncing || isDrawerOpen || isSettingsOpen || isHistoryOpen || errorMessage) return;
@@ -253,7 +266,7 @@ const App: React.FC = () => {
       {/* Pause/Syncing Overlay */}
       <PauseOverlay
         isVisible={isSyncing}
-        message={`Writing ${pendingCount} pending actions to disk...`}
+        message={syncMessage || `Writing ${pendingCount} pending actions to disk...`}
         progress={100 - (pendingCount / hardThreshold * 100)}
       />
 

@@ -13,6 +13,19 @@
 - **Metadata Inspection**: One-click expansion to view file properties and full EXIF data (Camera, ISO, Lens, etc.) with a frosted-glass overlay.
 - **Safety First**: Built-in **Dry Run Mode** to simulate sorting without moving actual files.
 - **Server-Managed**: Backend-driven filesystem operations ensure reliability and support for large libraries (5,000+ images).
+- **Smart Queueing**: A "no-lag" system that works in the background and gives your computer a breather if you're swiping super fast.
+
+---
+
+## 🏗️ The "Breather" System (Queue & Back-pressure)
+
+**Coord-Sort** is built for speed. To keep the experience fluid, the app handles the heavy lifting in the background so you can keep swiping without waiting for your disk to finish every move.
+
+- **Background Sorting**: When you swipe, the app instantly shows the next photo. The actual file moving or deleting happens silently behind the scenes.
+- **Automatic Breather**: If you're swiping super fast, you might see a quick **"Momentary Pause"** overlay. This is just the app giving your computer a second to finish its current work before you continue.
+- **Ready when you are**: As soon as the computer catches up, the pause disappears automatically, and you can get right back to sorting.
+
+This ensures you can sort as fast as your eyes can see, without ever worrying about overloading your system or losing track of your progress.
 
 ---
 
