@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import exifr from 'exifr';
 import sizeOf from 'image-size';
+import Database from 'better-sqlite3';
 import { ImageRecord, ALL_SUPPORTED_EXTENSIONS } from '@coord-sort/shared';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -25,9 +26,105 @@ export async function buildApp(): Promise<FastifyInstance> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const projectRoot = path.resolve(__dirname, '../../../');
 
+  // Database Initialization (M9)
+  const dbPath = path.isAbsolute(process.env.DATABASE_PATH || './data/coord-sort.db')
+    ? process.env.DATABASE_PATH!
+    : path.resolve(projectRoot, process.env.DATABASE_PATH || './data/coord-sort.db');
+
+  // Ensure data directory exists
+  await fs.mkdir(path.dirname(dbPath), { recursive: true });
+
+  const db = new Database(dbPath);
+  app.log.info(`Database connected at ${dbPath}`);
+
+  // Create tables if they don't exist
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+    CREATE TABLE IF NOT EXISTS actions (
+      id TEXT PRIMARY KEY,
+      imageId TEXT,
+      sourcePath TEXT,
+      destinationPath TEXT,
+      actionType TEXT,
+      direction TEXT,
+      status TEXT,
+      createdAt TEXT,
+      error TEXT
+    );
+  `);
+
+  // Seed settings from .env if empty (M9)
+  const seedSetting = (key: string, envValue: string) => {
+    const existing = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
+    if (!existing) {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(envValue));
+    }
+  };
+
+  seedSetting('mode', process.env.SORT_MODE || 'Tinder');
+  seedSetting('dryRun', process.env.DRY_RUN_MODE === 'true');
+
   const sourceRoot = path.isAbsolute(process.env.SOURCE_ROOT || '')
     ? process.env.SOURCE_ROOT!
     : path.resolve(projectRoot, process.env.SOURCE_ROOT || './dev-library/source');
+
+  // Background Queue Worker (M6)
+  const processQueue = async () => {
+    const batchSize = Number(process.env.QUEUE_BATCH_SIZE) || 10;
+
+    while (true) {
+      const pending = db.prepare('SELECT * FROM actions WHERE status = ? ORDER BY createdAt ASC LIMIT ?').all('pending', batchSize) as any[];
+
+      if (pending.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Idling
+        continue;
+      }
+
+      app.log.info(`QueueWorker: Processing ${pending.length} actions...`);
+
+      for (const action of pending) {
+        try {
+          db.prepare('UPDATE actions SET status = ? WHERE id = ?').run('processing', action.id);
+
+          const stats = await fs.stat(action.sourcePath).catch(() => null);
+          const fileSizeMB = stats ? stats.size / (1024 * 1024) : 0;
+
+          const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+          const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+          if (isDryRun) {
+            app.log.info(`[DRY RUN] Would move ${action.imageId}`);
+          } else {
+            const isDelete = action.actionType === 'trash' && action.destinationPath === 'SYSTEM DELETE';
+            if (isDelete) {
+              await fs.unlink(action.sourcePath);
+            } else {
+              const destDir = path.isAbsolute(action.destinationPath) ? action.destinationPath : path.resolve(projectRoot, action.destinationPath);
+              await fs.mkdir(destDir, { recursive: true });
+              await fs.rename(action.sourcePath, path.join(destDir, action.imageId));
+            }
+          }
+
+          db.prepare('UPDATE actions SET status = ? WHERE id = ?').run('completed', action.id);
+
+          // Adaptive Cooling: If file was large (>50MB), give the filesystem a breather
+          if (fileSizeMB > 50) {
+            const coolingMs = Math.min(1000, Math.floor(fileSizeMB * 2));
+            await new Promise(resolve => setTimeout(resolve, coolingMs));
+          }
+        } catch (err: any) {
+          app.log.error(`QueueWorker: Action ${action.id} failed: ${err.message}`);
+          db.prepare('UPDATE actions SET status = ?, error = ? WHERE id = ?').run('failed', err.message, action.id);
+        }
+      }
+    }
+  };
+
+  // Start worker in background
+  processQueue().catch(err => app.log.error(`QueueWorker Fatal Error: ${err.message}`));
 
   app.log.info(`Project Root: ${projectRoot}`);
   app.log.info(`Source Root: ${sourceRoot}`);
@@ -54,8 +151,15 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // API Routes (Vite proxy strips /api prefix)
   app.get('/settings', async () => {
-    const rawMode = process.env.SORT_MODE || 'Tinder';
+    // Persistent settings lookup (M9)
+    const getSetting = (key: string, defaultValue: any) => {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+      return row ? JSON.parse(row.value) : defaultValue;
+    };
+
+    const rawMode = getSetting('mode', process.env.SORT_MODE || 'Tinder');
     const isPlus = rawMode === 'TinderPlus';
+    const isDryRun = getSetting('dryRun', process.env.DRY_RUN_MODE === 'true');
 
     const getLabel = (envVar: string | undefined, defaultPath: string | null) => {
       const trimmed = envVar?.trim();
@@ -85,7 +189,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
     const result = {
       mode: isPlus ? 'TinderPlus' : 'Tinder',
-      dryRun: process.env.DRY_RUN_MODE === 'true',
+      dryRun: isDryRun,
       sourceRoot: {
         path: sourceRoot,
         exists: await checkExists(sourceRoot)
@@ -132,7 +236,56 @@ export async function buildApp(): Promise<FastifyInstance> {
 
     app.log.info({ msg: 'Resolved settings', destinations: result.destinations });
     return result;
-    });
+  });
+
+  app.post('/settings', async (request) => {
+    const body = request.body as any;
+
+    const upsert = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+
+    if (body.mode) upsert.run('mode', JSON.stringify(body.mode));
+    if (body.dryRun !== undefined) upsert.run('dryRun', JSON.stringify(body.dryRun));
+
+    return { status: 'ok' };
+  });
+
+  app.get('/history', async () => {
+    const rows = db.prepare('SELECT * FROM actions ORDER BY createdAt DESC LIMIT 100').all();
+    return rows;
+  });
+
+  app.post('/images/action', async (request, reply) => {
+    const { id, imageId, destinationPath, actionType, direction } = request.body as {
+      id: string;
+      imageId: string;
+      destinationPath: string;
+      actionType: 'move' | 'trash' | 'copy';
+      direction: string;
+    };
+
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+    const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+    const sourcePath = path.join(sourceRoot, imageId);
+
+    // Safety check: image must exist
+    try {
+      await fs.access(sourcePath);
+    } catch {
+      return reply.status(404).send({ error: `Image not found: ${imageId}` });
+    }
+
+    // Insert initial record (M6/M9) - Enqueue as 'pending'
+    const insertAction = db.prepare(`
+      INSERT INTO actions (id, imageId, sourcePath, destinationPath, actionType, direction, status, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const createdAt = new Date().toISOString();
+    insertAction.run(id, imageId, sourcePath, destinationPath, actionType, direction, 'pending', createdAt);
+
+    return { status: 'enqueued', id };
+  });
 
   app.get('/images/next', async () => {
     try {

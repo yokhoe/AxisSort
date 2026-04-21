@@ -8,18 +8,27 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Settings, Folder, Library, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, MoveHorizontal, MoveVertical, ShieldCheck, ShieldAlert, AlertCircle, CheckCircle2, Sun, Moon, Monitor, Trash2 } from 'lucide-react';
+import { X, Settings, Folder, Library, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, MoveHorizontal, Move, ShieldCheck, ShieldAlert, AlertCircle, CheckCircle2, Sun, Moon, Monitor, Trash2 } from 'lucide-react';
 
 interface SettingsDrawerProps {
   settings: any;
   isOpen: boolean;
   onClose: () => void;
+  onUpdate: (newSettings: any) => void;
   theme: 'light' | 'dark' | 'system';
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
 }
 
-export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ settings, isOpen, onClose, theme, setTheme }) => {
+export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ settings, isOpen, onClose, onUpdate, theme, setTheme }) => {
   if (!isOpen || !settings) return null;
+
+  const toggleMode = () => {
+    onUpdate({ mode: settings.mode === 'Tinder' ? 'TinderPlus' : 'Tinder' });
+  };
+
+  const toggleDryRun = () => {
+    onUpdate({ dryRun: !settings.dryRun });
+  };
 
   const ThemeButton = ({ mode, label, icon: Icon }: { mode: 'light' | 'dark' | 'system'; label: string; icon: any }) => (
     <button
@@ -101,22 +110,27 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ settings, isOpen
 
             {/* Mode & Status */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-white/40 dark:bg-slate-800/30 rounded-2xl border border-black/5 dark:border-white/5 flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Style</span>
-                <div className="flex items-center justify-center gap-2 text-slate-900 dark:text-white">
-                  {settings.mode === 'TinderPlus' ? <MoveVertical size={14} /> : <MoveHorizontal size={14} />}
+              <button
+                onClick={toggleMode}
+                className="p-4 bg-white/40 dark:bg-slate-800/30 rounded-2xl border border-black/5 dark:border-white/5 flex flex-col gap-1.5 hover:bg-blue-500/5 dark:hover:bg-blue-500/10 transition-colors group text-left"
+              >
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Sort Mode</span>
+                <div className="flex items-center justify-center gap-2 text-slate-900 dark:text-white group-hover:text-blue-500 transition-colors">
+                  {settings.mode === 'TinderPlus' ? <Move size={14} /> : <MoveHorizontal size={14} />}
                   <span className="text-sm font-bold truncate tracking-tight">
                     {settings.mode === 'TinderPlus' ? 'Tinder Plus' : 'Tinder'}
                   </span>
                 </div>
-              </div>
-              <div className={`p-4 rounded-2xl border flex flex-col gap-1.5 ${settings.dryRun ? 'bg-orange-500/10 dark:bg-orange-500/10 border-orange-500/40 dark:border-orange-500/50' : 'bg-green-500/10 dark:bg-green-500/10 border-green-500/40 dark:border-green-500/50'}`}>
+              </button>              <button
+                onClick={toggleDryRun}
+                className={`p-4 rounded-2xl border flex flex-col gap-1.5 transition-colors text-left ${settings.dryRun ? 'bg-orange-500/10 dark:bg-orange-500/10 border-orange-500/40 dark:border-orange-500/50 hover:bg-orange-500/20' : 'bg-green-500/10 dark:bg-green-500/10 border-green-500/40 dark:border-green-500/50 hover:bg-green-500/20'}`}
+              >
                 <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Safety</span>
                 <div className={`flex items-center justify-center gap-2 ${settings.dryRun ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
                   {settings.dryRun ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
                   <span className="text-sm font-bold uppercase tracking-tight">{settings.dryRun ? 'Dry Run' : 'Live'}</span>
                 </div>
-              </div>
+              </button>
             </div>
 
             {/* Paths */}

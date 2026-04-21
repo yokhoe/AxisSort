@@ -55,15 +55,22 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [imagesRes, settingsRes] = await Promise.all([
+      const [imagesRes, settingsRes, historyRes] = await Promise.all([
         fetch('/api/images/next'),
-        fetch('/api/settings')
+        fetch('/api/settings'),
+        fetch('/api/history')
       ]);
       const imagesData = await imagesRes.json();
       const settingsData = await settingsRes.json();
+      const historyData = await historyRes.json();
 
       setImages(imagesData);
       setSettings(settingsData);
+      setHistory(historyData);
+
+      // Calculate initial pending count from loaded history
+      const pending = historyData.filter((a: any) => a.status === 'pending' || a.status === 'processing').length;
+      setPendingCount(pending);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -74,6 +81,40 @@ const App: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleSettingsUpdate = useCallback(async (newSettings: any) => {
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to update settings:', err);
+    }
+  }, [fetchData]);
+
+  // Sync History/Pending state from server periodically if there are pending actions
+  useEffect(() => {
+    if (pendingCount === 0) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/history');
+        const historyData = await res.json();
+        setHistory(historyData);
+        const pending = historyData.filter((a: any) => a.status === 'pending' || a.status === 'processing').length;
+        setPendingCount(pending);
+      } catch (err) {
+        console.error('Failed to sync history:', err);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [pendingCount]);
 
   const handleSwipe = useCallback((direction: SwipeDirection) => {
     if (isSyncing) return;
@@ -99,20 +140,27 @@ const App: React.FC = () => {
 
     const destPath = destConfig?.path || direction;
 
-    const newAction: ActionIntent = {
-      id: Math.random().toString(36).substr(2, 9),
-      imageId: currentPhoto.id,
-      sourcePath: currentPhoto.filename,
-      destinationPath: destConfig?.isDelete ? 'SYSTEM DELETE' : destPath,
-      actionType: direction === 'trash' && destConfig?.isDelete ? 'event' : (direction === 'trash' ? 'trash' : 'move'),
-      direction,
-      status: 'completed',
-      createdAt: new Date().toISOString()
-    };
+    const actionId = Math.random().toString(36).substr(2, 9);
 
-    setHistory(prev => [...prev, newAction]);
+    // Optimistically update UI
     setPendingCount(prev => prev + 1);
     setImages((prev) => prev.slice(1));
+
+    // Enqueue on server
+    fetch('/api/images/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: actionId,
+        imageId: currentPhoto.id,
+        destinationPath: destConfig?.isDelete ? 'SYSTEM DELETE' : destPath,
+        actionType: direction === 'trash' && destConfig?.isDelete ? 'trash' : 'move',
+        direction
+      })
+    }).catch(err => {
+      console.error('Failed to enqueue action:', err);
+    });
+
   }, [images, settings, isSyncing]);
 
   const softThreshold = settings?.queue?.softThreshold || 25;
@@ -125,17 +173,6 @@ const App: React.FC = () => {
     if (pendingCount >= hardThreshold && !isSyncing) {
       setIsSyncing(true);
       setSyncMessage('Saving your changes... back in a second.');
-      const eventAction: ActionIntent = {
-        id: `sys-hard-${Date.now()}`,
-        imageId: 'system',
-        sourcePath: `Queue reached hard threshold of ${hardThreshold}`,
-        destinationPath: 'Back-pressure pause triggered',
-        actionType: 'event',
-        direction: 'system',
-        status: 'info',
-        createdAt: new Date().toISOString()
-      };
-      setHistory(prev => [...prev, eventAction]);
     }
     // Soft Threshold: Proactive "Slow Down" prompt
     else if (pendingCount >= softThreshold && !isSyncing) {
@@ -143,17 +180,9 @@ const App: React.FC = () => {
       setSyncMessage("You're fast! Just letting the disk catch up...");
     }
 
-    if (isSyncing) {
-      const timer = setTimeout(() => {
-        const drainAmount = Math.max(5, Math.floor(hardThreshold * 0.1));
-        setPendingCount(prev => Math.max(0, prev - drainAmount));
-
-        if (pendingCount <= resumeThreshold) {
-          setIsSyncing(false);
-          setSyncMessage('');
-        }
-      }, 200);
-      return () => clearTimeout(timer);
+    if (isSyncing && pendingCount <= resumeThreshold) {
+      setIsSyncing(false);
+      setSyncMessage('');
     }
   }, [pendingCount, isSyncing, softThreshold, hardThreshold, resumeThreshold]);
   useEffect(() => {
@@ -223,6 +252,7 @@ const App: React.FC = () => {
               upLabel={settings?.destinations?.up?.label}
               downLabel={settings?.destinations?.down?.label}
               resetTrigger={resetTrigger}
+              mode={settings?.mode}
             />
           </div>
         ) : (
@@ -252,6 +282,7 @@ const App: React.FC = () => {
         settings={settings}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onUpdate={handleSettingsUpdate}
         theme={theme}
         setTheme={setTheme}
       />

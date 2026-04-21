@@ -194,12 +194,12 @@ export const MetadataDrawer: React.FC<MetadataDrawerProps> = ({ image, isOpen, o
           </div>
 
           {/* Image Preview (Expanding from photo stack with dissolve reveal) */}
-          <div className="w-full sm:flex-none flex items-center justify-center relative bg-slate-200 dark:bg-slate-950 overflow-hidden rounded-t-[2.5rem]">
+          <div className="w-full sm:flex-none flex items-center justify-center relative bg-slate-200 dark:bg-slate-950/40 overflow-hidden rounded-t-[2rem] sm:rounded-t-[2.5rem] min-h-[30vh] isolate z-0">
             <motion.img
               layoutId={`image-${image.id}`}
               src={`/images/${image.filename}`}
               alt={image.filename}
-              className="w-full h-auto max-h-[70vh] object-contain relative z-0 rounded-t-[2.5rem]"
+              className="max-w-full max-h-[65vh] w-auto h-auto object-contain relative z-0"
               style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
               transition={{ type: 'tween', duration: 0.5, ease: "circOut" }}
             />
