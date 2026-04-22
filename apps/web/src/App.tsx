@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Settings, Trash2, AlertCircle, Sun, Moon, Monitor } from 'lucide-react';
+import { Settings, Trash2, AlertCircle, Sun, Moon, Monitor, MoveHorizontal, Move, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { ImageRecord, SwipeDirection, ActionIntent } from '@coord-sort/shared';
 import { SwipeCard } from './components/SwipeCard';
 import { MetadataDrawer } from './components/MetadataDrawer';
@@ -15,6 +15,30 @@ import { SettingsDrawer } from './components/SettingsDrawer';
 import { PauseOverlay } from './components/PauseOverlay';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { AnimatePresence, motion } from 'framer-motion';
+
+const Firework = () => {
+  const style = useMemo(() => {
+    const colors = ['yellow', 'khaki', 'white', 'lime', 'gold', 'mediumseagreen', 'pink', 'violet', 'fuchsia', 'orchid', 'plum', 'lavender', 'cyan', 'lightcyan', 'lightblue', 'PaleTurquoise', 'SkyBlue', 'aqua'];
+    const getRandomColor = () => colors[Math.floor(Math.random() * colors.length)];
+
+    return {
+      '--top': `${20 + Math.random() * 60}%`,
+      '--left': `${10 + Math.random() * 80}%`,
+      '--dur': `${1.5 + Math.random() * 1.5}s`,
+      '--finalSize': `${30 + Math.random() * 30}vmin`,
+      '--color1': getRandomColor(),
+      '--color2': getRandomColor(),
+      '--color3': getRandomColor(),
+      '--color4': getRandomColor(),
+      '--color5': getRandomColor(),
+      '--color6': getRandomColor(),
+      '--y': `${-20 - Math.random() * 30}vmin`,
+      animationDelay: `${Math.random() * 2}s`
+    } as React.CSSProperties;
+  }, []);
+
+  return <div className="firework" style={style}></div>;
+};
 
 const App: React.FC = () => {
   const [images, setImages] = useState<ImageRecord[]>([]);
@@ -25,7 +49,8 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [history, setHistory] = useState<ActionIntent[]>([]);
+  const [liveHistory, setLiveHistory] = useState<ActionIntent[]>([]);
+  const [dryRunHistory, setDryRunHistory] = useState<ActionIntent[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resetTrigger, setResetTrigger] = useState(0);
 
@@ -62,13 +87,12 @@ const App: React.FC = () => {
       ]);
       const imagesData = await imagesRes.json();
       const settingsData = await settingsRes.json();
-      const historyData = await historyRes.json();
+      const historyData: ActionIntent[] = await historyRes.json();
 
       setImages(imagesData);
       setSettings(settingsData);
-      setHistory(historyData);
 
-      // Calculate initial pending count from loaded history
+      // Note: We track session history locally only to keep counters starting at 0
       const pending = historyData.filter((a: any) => a.status === 'pending' || a.status === 'processing').length;
       setPendingCount(pending);
     } catch (err) {
@@ -97,22 +121,20 @@ const App: React.FC = () => {
     }
   }, [fetchData]);
 
-  // Sync History/Pending state from server periodically if there are pending actions
+  // Sync Pending state from server periodically if there are pending actions
   useEffect(() => {
     if (pendingCount === 0) return;
 
     const interval = setInterval(async () => {
       try {
         const res = await fetch('/api/history');
-        const historyData = await res.json();
-        setHistory(historyData);
+        const historyData: ActionIntent[] = await res.json();
         const pending = historyData.filter((a: any) => a.status === 'pending' || a.status === 'processing').length;
         setPendingCount(pending);
       } catch (err) {
         console.error('Failed to sync history:', err);
       }
     }, 2000);
-
     return () => clearInterval(interval);
   }, [pendingCount]);
 
@@ -139,14 +161,30 @@ const App: React.FC = () => {
     }
 
     const destPath = destConfig?.path || direction;
-
     const actionId = Math.random().toString(36).substr(2, 9);
 
-    // Optimistically update UI
+    // Optimistically update session history
+    const optimisticAction: ActionIntent = {
+      id: actionId,
+      imageId: currentPhoto.id,
+      sourcePath: currentPhoto.filename,
+      destinationPath: destConfig?.isDelete ? 'SYSTEM DELETE' : destPath,
+      actionType: direction === 'trash' && destConfig?.isDelete ? 'trash' : 'move',
+      direction,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      isDryRun: settings?.dryRun
+    };
+
+    if (settings?.dryRun) {
+      setDryRunHistory(prev => [...prev, optimisticAction]);
+    } else {
+      setLiveHistory(prev => [...prev, optimisticAction]);
+    }
+
     setPendingCount(prev => prev + 1);
     setImages((prev) => prev.slice(1));
 
-    // Enqueue on server
     fetch('/api/images/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -160,7 +198,6 @@ const App: React.FC = () => {
     }).catch(err => {
       console.error('Failed to enqueue action:', err);
     });
-
   }, [images, settings, isSyncing]);
 
   const softThreshold = settings?.queue?.softThreshold || 25;
@@ -169,13 +206,10 @@ const App: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<string>('');
 
   useEffect(() => {
-    // Hard Threshold: Full back-pressure block
     if (pendingCount >= hardThreshold && !isSyncing) {
       setIsSyncing(true);
       setSyncMessage('Saving your changes... back in a second.');
-    }
-    // Soft Threshold: Proactive "Slow Down" prompt
-    else if (pendingCount >= softThreshold && !isSyncing) {
+    } else if (pendingCount >= softThreshold && !isSyncing) {
       setIsSyncing(true);
       setSyncMessage("You're fast! Just letting the disk catch up...");
     }
@@ -185,6 +219,7 @@ const App: React.FC = () => {
       setSyncMessage('');
     }
   }, [pendingCount, isSyncing, softThreshold, hardThreshold, resumeThreshold]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (images.length === 0 || isSyncing || isDrawerOpen || isSettingsOpen || isHistoryOpen || errorMessage) return;
@@ -203,6 +238,7 @@ const App: React.FC = () => {
   }, [images, handleSwipe, isSyncing, isDrawerOpen, isSettingsOpen, isHistoryOpen, settings?.mode, errorMessage]);
 
   const currentImage = images[0];
+  const sortedCount = (settings?.dryRun ? dryRunHistory : liveHistory).filter(a => a.actionType !== 'event').length;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-500 overflow-hidden">
@@ -255,17 +291,38 @@ const App: React.FC = () => {
               mode={settings?.mode}
             />
           </div>
+        ) : sortedCount > 0 ? (
+          /* Mission Accomplished State */
+          <div className="relative flex items-center justify-center w-full h-full">
+            <div className="firework-container">
+              <Firework />
+              <Firework />
+              <Firework />
+              <Firework />
+              <Firework />
+            </div>
+
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white/80 dark:bg-slate-900/80 rounded-[2.5rem] p-12 border border-white/20 dark:border-white/10 backdrop-blur-2xl shadow-2xl relative z-20 text-center max-w-lg mx-4"
+            >              <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Job Done!</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest mb-8">You've cleared the stack.</p>
+              <div className="bg-green-500/10 text-green-600 dark:text-green-400 px-6 py-3 rounded-2xl border border-green-500/20 text-xs font-black uppercase tracking-[0.2em] mb-10">
+                {sortedCount} Files Sorted
+              </div>
+            </motion.div>
+          </div>
         ) : (
-          <div className="w-full max-w-md aspect-[3/4] bg-white dark:bg-slate-900/50 rounded-3xl flex items-center justify-center border border-black/5 dark:border-white/5 backdrop-blur-sm shadow-xl">
+          /* Initial Empty State */
+          <div className="w-full max-w-md aspect-[3/4] bg-white/40 dark:bg-slate-900/40 rounded-[2.5rem] flex items-center justify-center border border-black/5 dark:border-white/10 backdrop-blur-md shadow-xl">
             <div className="text-center p-8">
-              <p className="text-slate-600 dark:text-slate-400 text-lg font-semibold uppercase tracking-tight">Stack Depleted</p>
-              <p className="text-slate-400 dark:text-slate-600 text-xs mt-2 uppercase tracking-widest">Add more files to source</p>
-              <button
-                onClick={fetchData}
-                className="mt-8 px-6 py-2.5 bg-blue-600/10 dark:bg-blue-600/20 hover:bg-blue-600/20 dark:hover:bg-blue-600/40 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-xl transition-all text-xs font-bold uppercase tracking-widest"
-              >
-                Sync Library
-              </button>
+              <p className="text-slate-400 dark:text-slate-600 text-xs font-black uppercase tracking-[0.3em] mb-4">Welcome to Coord-Sort</p>
+              <p className="text-slate-600 dark:text-slate-300 text-lg font-bold uppercase tracking-tight">Library Empty</p>
+              <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-2 uppercase tracking-widest leading-relaxed">
+                Add images to your source directory<br/>
+                to begin sorting.
+              </p>
             </div>
           </div>
         )}
@@ -289,7 +346,7 @@ const App: React.FC = () => {
 
       {/* History Overlay */}
       <HistoryDrawer
-        history={history}
+        history={settings?.dryRun ? dryRunHistory : liveHistory}
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
       />
@@ -334,23 +391,28 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Floating Status Bar */}
       <div className="absolute bottom-0 left-0 right-0 p-6 flex justify-between items-end z-40 text-slate-900 dark:text-white">
         <button
           onClick={() => setIsHistoryOpen(true)}
-          className="px-4 py-2 bg-white/60 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/5 text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-500 uppercase hover:bg-white/80 dark:hover:bg-slate-800/60 transition-all pointer-events-auto shadow-lg"
+          className="px-4 py-2 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/10 text-[10px] font-bold tracking-wider text-slate-600 dark:text-slate-500 uppercase hover:bg-white/80 dark:hover:bg-slate-800/60 transition-all pointer-events-auto shadow-lg"
         >
-          {images.length} REMAINING • {history.length} SORTED
+          {(() => {
+            const currentSorted = (settings?.dryRun ? dryRunHistory : liveHistory).filter(a => a.actionType !== 'event').length;
+            return currentSorted > 0
+              ? `${currentSorted} SORTED / ${images.length} IMAGES`
+              : `${images.length} IMAGES`;
+          })()}
         </button>
 
         <div className="flex flex-col gap-2 items-end pointer-events-none">
-          <div className="px-4 py-2 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/10 flex items-center gap-2 shadow-lg">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
-            <span className="text-[10px] font-black tracking-wider text-slate-700 dark:text-slate-400 uppercase">LIVE SCAN</span>
-          </div>
-          {settings?.dryRun && (
+          {!settings?.dryRun ? (
+            <div className="px-4 py-2 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-full border border-black/5 dark:border-white/10 flex items-center gap-2 shadow-lg">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
+              <span className="text-[10px] font-black tracking-wider text-slate-700 dark:text-slate-400 uppercase">LIVE</span>
+            </div>
+          ) : (
             <div className="px-4 py-2 bg-orange-500/10 dark:bg-orange-500/10 backdrop-blur-md rounded-full border border-orange-500/40 dark:border-orange-500/20 text-[10px] font-black tracking-wider text-orange-700 dark:text-orange-400 uppercase shadow-lg">
-              DRY RUN ACTIVE
+              DRY RUN
             </div>
           )}
         </div>
@@ -358,4 +420,5 @@ const App: React.FC = () => {
     </div>
   );
 };
+
 export default App;

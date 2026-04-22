@@ -125,7 +125,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ settings, isOpen
                 onClick={toggleDryRun}
                 className={`p-4 rounded-2xl border flex flex-col gap-1.5 transition-colors text-left ${settings.dryRun ? 'bg-orange-500/10 dark:bg-orange-500/10 border-orange-500/40 dark:border-orange-500/50 hover:bg-orange-500/20' : 'bg-green-500/10 dark:bg-green-500/10 border-green-500/40 dark:border-green-500/50 hover:bg-green-500/20'}`}
               >
-                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Safety</span>
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Environment</span>
                 <div className={`flex items-center justify-center gap-2 ${settings.dryRun ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
                   {settings.dryRun ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
                   <span className="text-sm font-bold uppercase tracking-tight">{settings.dryRun ? 'Dry Run' : 'Live'}</span>

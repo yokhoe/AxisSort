@@ -66,6 +66,7 @@ export interface ActionIntent {
   direction: SwipeDirection | "system";
   status: "pending" | "processing" | "completed" | "failed" | "info";
   createdAt: string;
+  isDryRun?: boolean;
   errorMessage?: string;
 }
 
