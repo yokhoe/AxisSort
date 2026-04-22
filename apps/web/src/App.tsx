@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Settings, Trash2, AlertCircle, Sun, Moon, Monitor, MoveHorizontal, Move, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Settings, Trash2, Undo2, AlertCircle, Sun, Moon, Monitor, MoveHorizontal, Move, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { ImageRecord, SwipeDirection, ActionIntent } from '@coord-sort/shared';
 import { SwipeCard } from './components/SwipeCard';
 import { MetadataDrawer } from './components/MetadataDrawer';
@@ -200,6 +200,33 @@ const App: React.FC = () => {
     });
   }, [images, settings, isSyncing]);
 
+  const handleUndo = useCallback(async () => {
+    try {
+      const res = await fetch('/api/actions/undo', { method: 'POST' });
+      const data = await res.json();
+
+      if (res.ok) {
+        // Remove from session history
+        if (settings?.dryRun) {
+          setDryRunHistory(prev => prev.slice(0, -1));
+        } else {
+          setLiveHistory(prev => prev.slice(0, -1));
+        }
+
+        // Refresh images and settings to get the file back in the stack
+        await fetchData();
+
+        // Trigger a reset on the swipe card just in case
+        setResetTrigger(prev => prev + 1);
+      } else {
+        setErrorMessage(data.error || 'Failed to undo last action.');
+      }
+    } catch (err) {
+      console.error('Undo failed:', err);
+      setErrorMessage('A network error occurred while trying to undo.');
+    }
+  }, [fetchData, settings?.dryRun]);
+
   const softThreshold = settings?.queue?.softThreshold || 25;
   const hardThreshold = settings?.queue?.hardThreshold || 50;
   const resumeThreshold = settings?.queue?.resumeThreshold || 10;
@@ -229,6 +256,7 @@ const App: React.FC = () => {
         case 'ArrowRight': handleSwipe('right'); break;
         case 'ArrowUp': if (settings?.mode === 'TinderPlus') handleSwipe('up'); break;
         case 'ArrowDown': if (settings?.mode === 'TinderPlus') handleSwipe('down'); break;
+        case 'z': case 'Z': if (e.ctrlKey || e.metaKey) { e.preventDefault(); handleUndo(); } break;
         case 't': case 'T': case 'Backspace': handleSwipe('trash'); break;
         case 'h': case 'H': setIsHistoryOpen(prev => !prev); break;
       }
@@ -264,12 +292,29 @@ const App: React.FC = () => {
           <span className="text-[9px] font-bold tracking-[0.4em] mt-1.5 text-slate-500 dark:text-slate-400">VERSION 1.0.0</span>
         </div>
 
-        <button
-          className="p-3 bg-white/60 dark:bg-slate-800/40 hover:bg-white/80 dark:hover:bg-slate-700/60 rounded-2xl transition-all text-red-500 dark:text-red-400 backdrop-blur-md border border-black/5 dark:border-white/5 shadow-xl"
-          onClick={() => handleSwipe('trash')}
-        >
-          <Trash2 size={24} />
-        </button>
+        <div className="flex items-center gap-3">
+          <AnimatePresence>
+            {sortedCount > 0 && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.8, x: 20 }}
+                className="p-3 bg-white/60 dark:bg-slate-800/40 hover:bg-white/80 dark:hover:bg-slate-700/60 rounded-2xl transition-all text-blue-600 dark:text-blue-400 backdrop-blur-md border border-black/5 dark:border-white/5 shadow-xl"
+                onClick={handleUndo}
+                title="Undo Last Action (Ctrl+Z)"
+              >
+                <Undo2 size={24} />
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          <button
+            className="p-3 bg-white/60 dark:bg-slate-800/40 hover:bg-white/80 dark:hover:bg-slate-700/60 rounded-2xl transition-all text-red-500 dark:text-red-400 backdrop-blur-md border border-black/5 dark:border-white/5 shadow-xl"
+            onClick={() => handleSwipe('trash')}
+          >
+            <Trash2 size={24} />
+          </button>
+        </div>
       </div>
 
       {/* Main Content Area */}

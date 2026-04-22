@@ -254,6 +254,75 @@ export async function buildApp(): Promise<FastifyInstance> {
     return rows;
   });
 
+  app.get('/history/thumbnail/:actionId', async (request, reply) => {
+    const { actionId } = request.params as { actionId: string };
+    const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(actionId) as any;
+
+    if (!action) return reply.status(404).send({ error: 'Action not found' });
+
+    // If completed and not dry-run, it's at the destination.
+    // If pending/processing or dry-run, it's still at the source.
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+    const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+    let filePath = action.sourcePath;
+    if (action.status === 'completed' && !isDryRun) {
+      if (action.destinationPath !== 'SYSTEM DELETE') {
+        filePath = path.join(action.destinationPath, action.imageId);
+      }
+    }
+
+    try {
+      await fs.access(filePath);
+      return reply.sendFile(path.basename(filePath), path.dirname(filePath));
+    } catch (err) {
+      return reply.status(404).send({ error: 'Image file no longer accessible.' });
+    }
+  });
+
+  app.post('/actions/undo', async (request, reply) => {
+    // Find the last action that is either 'completed' or 'pending'/'processing'
+    const lastAction = db.prepare(`
+      SELECT * FROM actions
+      WHERE status IN ('completed', 'pending', 'processing')
+      ORDER BY createdAt DESC LIMIT 1
+    `).get() as any;
+
+    if (!lastAction) {
+      return reply.status(404).send({ error: 'No recent actions found to undo.' });
+    }
+
+    try {
+      if (lastAction.status === 'completed') {
+        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+        const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+        if (!isDryRun) {
+          const currentPath = lastAction.actionType === 'trash' && lastAction.destinationPath === 'SYSTEM DELETE'
+            ? null // If it was a real delete, we can't undo it easily if unlinked
+            : path.join(lastAction.destinationPath, lastAction.imageId);
+
+          if (lastAction.actionType === 'trash' && lastAction.destinationPath === 'SYSTEM DELETE') {
+             // In current implementation, SYSTEM DELETE uses fs.unlink.
+             // True undo would require a recycle bin. For now, we only support undo for moves.
+             return reply.status(400).send({ error: 'Cannot undo a permanent deletion.' });
+          }
+
+          // Move back to source
+          await fs.rename(currentPath!, lastAction.sourcePath);
+        }
+      }
+
+      // Mark as undone or just delete it
+      db.prepare('DELETE FROM actions WHERE id = ?').run(lastAction.id);
+
+      return { status: 'undone', actionId: lastAction.id, imageId: lastAction.imageId };
+    } catch (err: any) {
+      app.log.error(`Undo failed: ${err.message}`);
+      return reply.status(500).send({ error: `Undo failed: ${err.message}` });
+    }
+  });
+
   app.post('/images/action', async (request, reply) => {
     const { id, imageId, destinationPath, actionType, direction } = request.body as {
       id: string;
