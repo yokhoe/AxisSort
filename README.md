@@ -52,7 +52,7 @@ While **Coord-Sort** feels like a lightweight web app, it uses a local SQLite da
 
 ## 📈 Milestone Progress
 
-**Current Overall Progress: 85%**
+**Current Overall Progress: 100%**
 
 | Milestone | Description | Status | Progress |
 | :--- | :--- | :--- | :--- |
@@ -63,9 +63,9 @@ While **Coord-Sort** feels like a lightweight web app, it uses a local SQLite da
 | **M5: Config** | Path & Mode configuration UI | ✅ Done | 100% |
 | **M6: Queue** | Decision enqueuing & The Breather | ✅ Done | 100% |
 | **M7: Metadata** | EXIF parsing & Details drawer | ✅ Done | 100% |
-| **M8: Safety** | Dry-run, Undo, Action logging | 🚧 Partial | 70% |
+| **M8: Safety** | Dry-run, Undo, Action logging | ✅ Done | 100% |
 | **M9: Persistence**| SQLite DB & Session resume | ✅ Done | 100% |
-| **M10: Docker** | Packaging & Compose support | ⏳ Later | 0% |
+| **M10: Docker** | Packaging & GHCR Automation | ✅ Done | 100% |
 
 ---
 
@@ -88,11 +88,38 @@ npm install
 cp .env.example .env
 ```
 
-### 3. Run
+### 3. Run (Development)
 ```bash
 npm run dev
 ```
 The frontend will be available at `http://localhost:5173` and the backend at `http://localhost:3001`.
+
+### 4. Docker Deployment (Recommended)
+The easiest way to run Coord-Sort is using our pre-built image from the **GitHub Container Registry (GHCR)**.
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  coord-sort:
+    image: ghcr.io/yokhoe/coord-sort:main
+    container_name: coord-sort
+    ports:
+      - "3001:3001"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - /path/to/your/source:/photos/source
+      - /path/to/your/sorted:/photos/sorted
+      - /path/to/your/trash:/photos/trash
+    restart: unless-stopped
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
 
 ---
 

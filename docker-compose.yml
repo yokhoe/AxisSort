@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  coord-sort:
+    build: .
+    container_name: coord-sort
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      - DATABASE_PATH=/app/data/coord-sort.db
+      - SOURCE_ROOT=/photos/source
+      - DESTINATION_LEFT=/photos/sorted/left
+      - DESTINATION_RIGHT=/photos/sorted/right
+      - DESTINATION_UP=/photos/sorted/up
+      - DESTINATION_DOWN=/photos/sorted/down
+      - TRASH_PATH=/photos/trash
+    volumes:
+      # Persistent App Data (Database)
+      - ./data:/app/data
+
+      # Photo Library Mounts
+      # EDIT THESE TO POINT TO YOUR REAL PHOTOS
+      - ./dev-library/source:/photos/source:rw
+      - ./dev-library/dest-left:/photos/sorted/left:rw
+      - ./dev-library/dest-right:/photos/sorted/right:rw
+      - ./dev-library/dest-up:/photos/sorted/up:rw
+      - ./dev-library/dest-down:/photos/sorted/down:rw
+      - ./dev-library/trash:/photos/trash:rw
+    restart: unless-stopped
