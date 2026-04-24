@@ -11,11 +11,13 @@
     "dev:web": "npm --workspace apps/web run dev -- --host",
     "dev:api": "npm --workspace apps/api run dev",
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
-    "build": "npm run build --workspaces",
+    "build": "npm --workspace packages/shared run build && npm run build --workspaces",
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/node": "^20.11.30",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
   }
 }
