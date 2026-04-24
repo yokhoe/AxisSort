@@ -57,7 +57,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   `);
 
   // Seed settings from .env if empty (M9)
-  const seedSetting = (key: string, envValue: string) => {
+  const seedSetting = (key: string, envValue: any) => {
     const existing = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
     if (!existing) {
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, JSON.stringify(envValue));
@@ -400,7 +400,8 @@ export async function buildApp(): Promise<FastifyInstance> {
 
       if (!width || !height) {
         try {
-          const dimensions = sizeOf(filePath);
+          const buf = await fs.readFile(filePath);
+          const dimensions = sizeOf(buf);
           width = dimensions.width || null;
           height = dimensions.height || null;
         } catch (e) {
