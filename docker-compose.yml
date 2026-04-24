@@ -1,8 +1,8 @@
-version: '3.8'
+version: "3.8"
 
 services:
   coord-sort:
-    build: .
+    image: ghcr.io/yokhoe/coord-sort:main
     container_name: coord-sort
     ports:
       - "3001:3001"
@@ -20,11 +20,10 @@ services:
       - ./data:/app/data
 
       # Photo Library Mounts
-      # EDIT THESE TO POINT TO YOUR REAL PHOTOS
-      - ./dev-library/source:/photos/source:rw
-      - ./dev-library/dest-left:/photos/sorted/left:rw
-      - ./dev-library/dest-right:/photos/sorted/right:rw
-      - ./dev-library/dest-up:/photos/sorted/up:rw
-      - ./dev-library/dest-down:/photos/sorted/down:rw
-      - ./dev-library/trash:/photos/trash:rw
+      # -----------------------------------------------------------------
+      # CHANGE THE LEFT SIDE OF THE ':' TO YOUR REAL PHOTO FOLDERS
+      # -----------------------------------------------------------------
+      - /path/to/your/source/photos:/photos/source:rw
+      - /path/to/your/sorted/photos:/photos/sorted:rw
+      - /path/to/your/trash/photos:/photos/trash:rw
     restart: unless-stopped

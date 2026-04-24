@@ -94,32 +94,31 @@ npm run dev
 ```
 The frontend will be available at `http://localhost:5173` and the backend at `http://localhost:3001`.
 
-### 4. Docker Deployment (Recommended)
-The easiest way to run Coord-Sort is using our pre-built image from the **GitHub Container Registry (GHCR)**.
+## 🐳 Docker Deployment (Recommended)
 
-Create a `docker-compose.yml` file:
+The fastest way to get **Coord-Sort** running is using our pre-built image. We've included a production-ready `docker-compose.yml` in the root directory to get you started in seconds.
 
-```yaml
-version: '3.8'
-services:
-  coord-sort:
-    image: ghcr.io/yokhoe/coord-sort:main
-    container_name: coord-sort
-    ports:
-      - "3001:3001"
-    env_file: .env
-    volumes:
-      - ./data:/app/data
-      - /path/to/your/source:/photos/source
-      - /path/to/your/sorted:/photos/sorted
-      - /path/to/your/trash:/photos/trash
-    restart: unless-stopped
+### 1. Prepare your Environment
+Copy the example environment file and set your sorting preferences:
+```bash
+cp .env.example .env
 ```
 
-Then run:
+### 2. Configure your Mounts
+Open the provided `docker-compose.yml` and update the **volumes** section to point to your real photo folders on your computer or NAS:
+
+```yaml
+volumes:
+  - ./data:/app/data
+  - /path/to/your/source/photos:/photos/source:rw
+  - /path/to/your/sorted/photos:/photos/sorted:rw
+```
+
+### 3. Launch
 ```bash
 docker-compose up -d
 ```
+The application will be live at `http://localhost:3001`.
 
 ---
 
