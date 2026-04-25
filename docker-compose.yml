@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   coord-sort:
+    build: .
     image: ghcr.io/yokhoe/coord-sort:main
     container_name: coord-sort
     ports:

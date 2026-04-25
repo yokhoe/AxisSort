@@ -4,7 +4,7 @@ FROM node:20-bookworm AS builder
 WORKDIR /app
 
 # Install build dependencies for better-sqlite3 (native node modules)
-RUN apt-get update && apt-get install -y python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace configuration and package files
 COPY package*.json ./
@@ -12,10 +12,10 @@ COPY packages/shared/package*.json ./packages/shared/
 COPY apps/api/package*.json ./apps/api/
 COPY apps/web/package*.json ./apps/web/
 
-# Install all dependencies
-RUN npm install
+# Install all dependencies (including devDeps for building)
+RUN npm ci
 
-# Copy source code
+# Copy source code (respecting .dockerignore)
 COPY . .
 
 # Build all packages (shared -> web -> api)
@@ -33,7 +33,8 @@ COPY packages/shared/package*.json ./packages/shared/
 COPY apps/api/package*.json ./apps/api/
 COPY apps/web/package*.json ./apps/web/
 
-RUN npm install --omit=dev
+# Use --omit=dev to keep image small
+RUN npm ci --omit=dev
 
 # Copy built artifacts from builder
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -45,4 +46,5 @@ RUN mkdir -p data
 
 EXPOSE 3001
 
+# Run the API server
 CMD ["node", "apps/api/dist/server.js"]
