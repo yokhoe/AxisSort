@@ -434,8 +434,8 @@ export async function buildApp(): Promise<FastifyInstance> {
       decorateReply: false // Already decorated by the /images/ static plugin
     });
 
-    // Catch-all route to serve index.html for client-side routing
-    app.get('/*', async (request, reply) => {
+    // Catch-all for client-side routing — serves index.html for any unmatched route
+    app.setNotFoundHandler(async (_request, reply) => {
       return reply.sendFile('index.html');
     });
   }
