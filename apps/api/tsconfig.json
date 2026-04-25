@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@coord-sort/shared": ["../../packages/shared/src/index.ts"]
+      "@coord-sort/shared": ["../../packages/shared/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*"]

@@ -31,6 +31,7 @@ ENV NODE_ENV=production
 COPY package*.json ./
 COPY packages/shared/package*.json ./packages/shared/
 COPY apps/api/package*.json ./apps/api/
+COPY apps/web/package*.json ./apps/web/
 
 RUN npm install --omit=dev
 
@@ -39,8 +40,9 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/web/dist ./apps/web/dist
 
-# The app moves files, so we run as root by default to avoid permission issues
-# with mounted NAS volumes.
+# Ensure data directory exists for default SQLite path
+RUN mkdir -p data
+
 EXPOSE 3001
 
 CMD ["node", "apps/api/dist/server.js"]
