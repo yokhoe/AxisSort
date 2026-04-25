@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import exifr from 'exifr';
-import sizeOf from 'image-size';
+import { imageSize as sizeOf } from 'image-size';
 import Database from 'better-sqlite3';
 import { ImageRecord, ALL_SUPPORTED_EXTENSIONS } from '@coord-sort/shared';
 
