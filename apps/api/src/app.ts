@@ -140,6 +140,29 @@ export async function buildApp(): Promise<FastifyInstance> {
     prefix: '/images/',
   });
 
+  // Serve the built frontend (M10: Docker Support)
+  const webDistPath = path.resolve(projectRoot, 'apps/web/dist');
+  try {
+    await fs.access(webDistPath);
+    await app.register(fastifyStatic, {
+      root: webDistPath,
+      prefix: '/',
+      decorateReply: false, // Required when registering multiple static plugins
+    });
+
+    // Handle SPA routing: serve index.html for non-API/non-image routes
+    app.setNotFoundHandler((request, reply) => {
+      if (request.url.startsWith('/api') || request.url.startsWith('/images')) {
+        reply.code(404).send({ error: 'Not Found', message: `Route ${request.method}:${request.url} not found` });
+      } else {
+        reply.sendFile('index.html');
+      }
+    });
+    app.log.info(`Serving frontend from ${webDistPath}`);
+  } catch (err) {
+    app.log.warn('Web dist folder not found, skipping frontend serving.');
+  }
+
   // Health check
   app.get('/health', async () => {
     return {
