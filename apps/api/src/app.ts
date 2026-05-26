@@ -72,6 +72,21 @@ export async function buildApp(): Promise<FastifyInstance> {
     : path.resolve(projectRoot, process.env.SOURCE_ROOT || './dev-library/source');
 
   // Background Queue Worker (M6)
+  // Helper for cross-device moves (M9: Portability)
+  const safeMove = async (src: string, dest: string) => {
+    try {
+      await fs.rename(src, dest);
+    } catch (err: any) {
+      if (err.code === 'EXDEV') {
+        // Fallback for cross-device move: Copy then Delete
+        await fs.copyFile(src, dest);
+        await fs.unlink(src);
+      } else {
+        throw err;
+      }
+    }
+  };
+
   const processQueue = async () => {
     const batchSize = Number(process.env.QUEUE_BATCH_SIZE) || 10;
 
@@ -104,7 +119,7 @@ export async function buildApp(): Promise<FastifyInstance> {
             } else {
               const destDir = path.isAbsolute(action.destinationPath) ? action.destinationPath : path.resolve(projectRoot, action.destinationPath);
               await fs.mkdir(destDir, { recursive: true });
-              await fs.rename(action.sourcePath, path.join(destDir, action.imageId));
+              await safeMove(action.sourcePath, path.join(destDir, action.imageId));
             }
           }
 
@@ -332,8 +347,7 @@ export async function buildApp(): Promise<FastifyInstance> {
           }
 
           // Move back to source
-          await fs.rename(currentPath!, lastAction.sourcePath);
-        }
+          await safeMove(currentPath!, lastAction.sourcePath);        }
       }
 
       // Mark as undone or just delete it

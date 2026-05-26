@@ -5,8 +5,9 @@ services:
     build: .
     image: ghcr.io/yokhoe/axissort:main
     container_name: axissort
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
-      - "3001:3001"
+      - "${APP_PORT:-3001}:3001"
     env_file: .env
     environment:
       - DATABASE_PATH=/app/data/axissort.db
@@ -18,13 +19,10 @@ services:
       - TRASH_PATH=/photos/trash
     volumes:
       # Persistent App Data (Database)
-      - ./data:/app/data
+      - ${DB_DATA_PATH:-./data}:/app/data
 
       # Photo Library Mounts
-      # -----------------------------------------------------------------
-      # CHANGE THE LEFT SIDE OF THE ':' TO YOUR REAL PHOTO FOLDERS
-      # -----------------------------------------------------------------
-      - /path/to/your/source/photos:/photos/source:rw
-      - /path/to/your/sorted/photos:/photos/sorted:rw
-      - /path/to/your/trash/photos:/photos/trash:rw
+      - ${SOURCE_PHOTOS_PATH}:/photos/source:rw
+      - ${SORTED_PHOTOS_PATH}:/photos/sorted:rw
+      - ${TRASH_PHOTOS_PATH}:/photos/trash:rw
     restart: unless-stopped
