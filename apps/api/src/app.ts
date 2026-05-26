@@ -461,21 +461,5 @@ export async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Serve Frontend Static Files in Production (M10)
-  if (process.env.NODE_ENV === 'production') {
-    const webDistPath = path.resolve(projectRoot, 'apps/web/dist');
-
-    app.register(fastifyStatic, {
-      root: webDistPath,
-      prefix: '/',
-      decorateReply: false // Already decorated by the /images/ static plugin
-    });
-
-    // Catch-all for client-side routing — serves index.html for any unmatched route
-    app.setNotFoundHandler(async (_request, reply) => {
-      return reply.sendFile('index.html');
-    });
-  }
-
   return app;
 }
