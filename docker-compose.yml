@@ -9,16 +9,16 @@ services:
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
-      - DATABASE_PATH=/app/data/axissort.db
       - SOURCE_ROOT=/photos/source
       - DESTINATION_LEFT=/photos/left
       - DESTINATION_RIGHT=/photos/right
       - DESTINATION_UP=/photos/up
       - DESTINATION_DOWN=/photos/down
       - TRASH_PATH=/photos/trash
+      - SORT_MODE=${SORT_MODE:-auto}
     volumes:
       # Persistent App Data (Database)
-      - ${DB_DATA_PATH:-./data}:/app/data
+      - ${DB_DATA_PATH}:/app/data
 
       # Photo Library Mounts (Independent absolute paths)
       - ${SOURCE_PATH}:/photos/source:rw

@@ -217,7 +217,10 @@ export async function buildApp(): Promise<FastifyInstance> {
 
       const resolvePath = (p: string | undefined) => {
         if (!p) return null;
-        return path.isAbsolute(p) ? p : path.resolve(projectRoot, p);
+        // In Docker, paths might be mounted but empty strings if not provided in .env
+        const trimmed = p.trim();
+        if (trimmed.length === 0 || trimmed === 'undefined') return null;
+        return path.isAbsolute(trimmed) ? trimmed : path.resolve(projectRoot, trimmed);
       };
 
       const leftPath = resolvePath(process.env.DESTINATION_LEFT);
@@ -226,8 +229,21 @@ export async function buildApp(): Promise<FastifyInstance> {
       const downPath = resolvePath(process.env.DESTINATION_DOWN);
       const trashPath = resolvePath(process.env.TRASH_PATH);
 
+      // Determine Sort Mode (M9: Robustness)
+      // Logic:
+      // 1. If SORT_MODE is explicitly set to 'Tinder' or 'TinderPlus', use that.
+      // 2. If 'auto' or unset, check if UP and DOWN paths are provided.
+      // 3. If UP/DOWN exist, use TinderPlus (4-way). Otherwise, Tinder (2-way).
+      let finalMode = getSetting('mode', process.env.SORT_MODE || 'auto');
+      if (finalMode === 'auto') {
+        finalMode = (upPath && downPath) ? 'TinderPlus' : 'Tinder';
+      }
+
+      const isPlus = finalMode === 'TinderPlus';
+      const isDryRun = getSetting('dryRun', process.env.DRY_RUN_MODE === 'true');
+
       const result = {
-        mode: isPlus ? 'TinderPlus' : 'Tinder',
+        mode: finalMode,
         dryRun: isDryRun,
         sourceRoot: {
           path: sourceRoot,
