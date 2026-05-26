@@ -32,5 +32,11 @@ echo "AxisSort: Starting with PUID=$USER_ID ($RUN_USER) and PGID=$GROUP_ID ($RUN
 # This ensures the DB can always be opened
 chown -R "$RUN_USER:$RUN_GROUP" /app/data
 
-# 4. Execute the application as the resolved user
+# 4. Fix permissions on photo directories if they are mounted
+if [ -d "/photos" ]; then
+    echo "AxisSort: Ensuring permissions on /photos"
+    chown -R "$RUN_USER:$RUN_GROUP" /photos
+fi
+
+# 5. Execute the application as the resolved user
 exec gosu "$RUN_USER" "$@"

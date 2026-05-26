@@ -187,279 +187,281 @@ export async function buildApp(): Promise<FastifyInstance> {
     };
   });
 
-  // API Routes (Vite proxy strips /api prefix)
-  app.get('/settings', async () => {
-    // Persistent settings lookup (M9)
-    const getSetting = (key: string, defaultValue: any) => {
-      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
-      return row ? JSON.parse(row.value) : defaultValue;
-    };
+  // Register API routes with /api prefix
+  await app.register(async (api) => {
+    api.get('/settings', async () => {
+      // Persistent settings lookup (M9)
+      const getSetting = (key: string, defaultValue: any) => {
+        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+        return row ? JSON.parse(row.value) : defaultValue;
+      };
 
-    const rawMode = getSetting('mode', process.env.SORT_MODE || 'Tinder');
-    const isPlus = rawMode === 'TinderPlus';
-    const isDryRun = getSetting('dryRun', process.env.DRY_RUN_MODE === 'true');
+      const rawMode = getSetting('mode', process.env.SORT_MODE || 'Tinder');
+      const isPlus = rawMode === 'TinderPlus';
+      const isDryRun = getSetting('dryRun', process.env.DRY_RUN_MODE === 'true');
 
-    const getLabel = (envVar: string | undefined, defaultPath: string | null) => {
-      const trimmed = envVar?.trim();
-      if (trimmed && trimmed.length > 0) return trimmed;
-      return defaultPath ? path.basename(defaultPath) : 'Unknown';
-    };
+      const getLabel = (envVar: string | undefined, defaultPath: string | null) => {
+        const trimmed = envVar?.trim();
+        if (trimmed && trimmed.length > 0) return trimmed;
+        return defaultPath ? path.basename(defaultPath) : 'Unknown';
+      };
 
-    const checkExists = async (p: string) => {
-      try {
-        await fs.access(p);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
-    const resolvePath = (p: string | undefined) => {
-      if (!p) return null;
-      return path.isAbsolute(p) ? p : path.resolve(projectRoot, p);
-    };
-
-    const leftPath = resolvePath(process.env.DESTINATION_LEFT);
-    const rightPath = resolvePath(process.env.DESTINATION_RIGHT);
-    const upPath = resolvePath(process.env.DESTINATION_UP);
-    const downPath = resolvePath(process.env.DESTINATION_DOWN);
-    const trashPath = resolvePath(process.env.TRASH_PATH);
-
-    const result = {
-      mode: isPlus ? 'TinderPlus' : 'Tinder',
-      dryRun: isDryRun,
-      sourceRoot: {
-        path: sourceRoot,
-        exists: await checkExists(sourceRoot)
-      },
-      destinations: {
-        left: {
-          label: getLabel(process.env.DESTINATION_LEFT_LABEL, leftPath),
-          path: leftPath,
-          exists: leftPath ? await checkExists(leftPath) : false,
-          isConfigured: !!leftPath
-        },
-        right: {
-          label: getLabel(process.env.DESTINATION_RIGHT_LABEL, rightPath),
-          path: rightPath,
-          exists: rightPath ? await checkExists(rightPath) : false,
-          isConfigured: !!rightPath
-        },
-        up: {
-          label: getLabel(process.env.DESTINATION_UP_LABEL, upPath),
-          path: upPath,
-          exists: upPath ? await checkExists(upPath) : false,
-          isConfigured: !!upPath
-        },
-        down: {
-          label: getLabel(process.env.DESTINATION_DOWN_LABEL, downPath),
-          path: downPath,
-          exists: downPath ? await checkExists(downPath) : false,
-          isConfigured: !!downPath
-        },
-        trash: {
-          label: getLabel(process.env.DESTINATION_TRASH_LABEL, trashPath),
-          path: trashPath,
-          exists: trashPath ? await checkExists(trashPath) : true,
-          isDelete: !trashPath,
-          isConfigured: true // Trash is always "active" (either move or delete)
-        },
-      },
-      queue: {
-        softThreshold: Number(process.env.QUEUE_SOFT_THRESHOLD) || 25,
-        hardThreshold: Number(process.env.QUEUE_HARD_THRESHOLD) || 50,
-        resumeThreshold: Number(process.env.QUEUE_RESUME_THRESHOLD) || 10,
-      }
-    };
-
-    app.log.info({ msg: 'Resolved settings', destinations: result.destinations });
-    return result;
-  });
-
-  app.post('/settings', async (request) => {
-    const body = request.body as any;
-
-    const upsert = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-
-    if (body.mode) upsert.run('mode', JSON.stringify(body.mode));
-    if (body.dryRun !== undefined) upsert.run('dryRun', JSON.stringify(body.dryRun));
-
-    return { status: 'ok' };
-  });
-
-  app.get('/history', async () => {
-    const rows = db.prepare('SELECT * FROM actions ORDER BY createdAt DESC LIMIT 100').all();
-    return rows;
-  });
-
-  app.get('/history/thumbnail/:actionId', async (request, reply) => {
-    const { actionId } = request.params as { actionId: string };
-    const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(actionId) as any;
-
-    if (!action) return reply.status(404).send({ error: 'Action not found' });
-
-    // If completed and not dry-run, it's at the destination.
-    // If pending/processing or dry-run, it's still at the source.
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
-    const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
-
-    let filePath = action.sourcePath;
-    if (action.status === 'completed' && !isDryRun) {
-      if (action.destinationPath !== 'SYSTEM DELETE') {
-        filePath = path.join(action.destinationPath, action.imageId);
-      }
-    }
-
-    try {
-      await fs.access(filePath);
-      return reply.sendFile(path.basename(filePath), path.dirname(filePath));
-    } catch (err) {
-      return reply.status(404).send({ error: 'Image file no longer accessible.' });
-    }
-  });
-
-  app.post('/actions/undo', async (request, reply) => {
-    // Find the last action that is either 'completed' or 'pending'/'processing'
-    const lastAction = db.prepare(`
-      SELECT * FROM actions
-      WHERE status IN ('completed', 'pending', 'processing')
-      ORDER BY createdAt DESC LIMIT 1
-    `).get() as any;
-
-    if (!lastAction) {
-      return reply.status(404).send({ error: 'No recent actions found to undo.' });
-    }
-
-    try {
-      if (lastAction.status === 'completed') {
-        const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
-        const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
-
-        if (!isDryRun) {
-          const currentPath = lastAction.actionType === 'trash' && lastAction.destinationPath === 'SYSTEM DELETE'
-            ? null // If it was a real delete, we can't undo it easily if unlinked
-            : path.join(lastAction.destinationPath, lastAction.imageId);
-
-          if (lastAction.actionType === 'trash' && lastAction.destinationPath === 'SYSTEM DELETE') {
-             // In current implementation, SYSTEM DELETE uses fs.unlink.
-             // True undo would require a recycle bin. For now, we only support undo for moves.
-             return reply.status(400).send({ error: 'Cannot undo a permanent deletion.' });
-          }
-
-          // Move back to source
-          await safeMove(currentPath!, lastAction.sourcePath);        }
-      }
-
-      // Mark as undone or just delete it
-      db.prepare('DELETE FROM actions WHERE id = ?').run(lastAction.id);
-
-      return { status: 'undone', actionId: lastAction.id, imageId: lastAction.imageId };
-    } catch (err: any) {
-      app.log.error(`Undo failed: ${err.message}`);
-      return reply.status(500).send({ error: `Undo failed: ${err.message}` });
-    }
-  });
-
-  app.post('/images/action', async (request, reply) => {
-    const { id, imageId, destinationPath, actionType, direction } = request.body as {
-      id: string;
-      imageId: string;
-      destinationPath: string;
-      actionType: 'move' | 'trash' | 'copy';
-      direction: string;
-    };
-
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
-    const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
-
-    const sourcePath = path.join(sourceRoot, imageId);
-
-    // Safety check: image must exist
-    try {
-      await fs.access(sourcePath);
-    } catch {
-      return reply.status(404).send({ error: `Image not found: ${imageId}` });
-    }
-
-    // Insert initial record (M6/M9) - Enqueue as 'pending'
-    const insertAction = db.prepare(`
-      INSERT INTO actions (id, imageId, sourcePath, destinationPath, actionType, direction, status, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const createdAt = new Date().toISOString();
-    insertAction.run(id, imageId, sourcePath, destinationPath, actionType, direction, 'pending', createdAt);
-
-    return { status: 'enqueued', id };
-  });
-
-  app.get('/images/next', async () => {
-    try {
-      const files = await fs.readdir(sourceRoot);
-      const imageFiles = files.filter(f =>
-        ALL_SUPPORTED_EXTENSIONS.includes(path.extname(f).toLowerCase())
-      );
-
-      app.log.info(`Found ${imageFiles.length} files in ${sourceRoot}`);
-
-      const images: ImageRecord[] = await Promise.all(
-        imageFiles.map(async (filename) => {
-          const stats = await fs.stat(path.join(sourceRoot, filename));
-          return {
-            id: filename,
-            filename,
-            sourcePath: filename,
-            extension: path.extname(filename),
-            sizeBytes: stats.size,
-          };
-        })
-      );
-
-      return images;
-    } catch (err) {
-      app.log.error(`Error reading source directory ${sourceRoot}: ${err}`);
-      return [];
-    }
-  });
-
-  app.get('/images/:id/metadata', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const filePath = path.join(sourceRoot, id);
-
-    try {
-      const stats = await fs.stat(filePath);
-      // exifr.parse with true fetches all markers including dimensions from the file header
-      const exif = await exifr.parse(filePath, true).catch(() => ({}));
-
-      // Robust dimension extraction with image-size fallback
-      let width = exif?.ExifImageWidth || exif?.ImageWidth || exif?.pixelXDimension || null;
-      let height = exif?.ExifImageHeight || exif?.ImageHeight || exif?.pixelYDimension || null;
-
-      if (!width || !height) {
+      const checkExists = async (p: string) => {
         try {
-          const buf = await fs.readFile(filePath);
-          const dimensions = sizeOf(buf);
-          width = dimensions.width || null;
-          height = dimensions.height || null;
-        } catch (e) {
-          app.log.error(`Failed to get dimensions using image-size for ${id}: ${e}`);
+          await fs.access(p);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      const resolvePath = (p: string | undefined) => {
+        if (!p) return null;
+        return path.isAbsolute(p) ? p : path.resolve(projectRoot, p);
+      };
+
+      const leftPath = resolvePath(process.env.DESTINATION_LEFT);
+      const rightPath = resolvePath(process.env.DESTINATION_RIGHT);
+      const upPath = resolvePath(process.env.DESTINATION_UP);
+      const downPath = resolvePath(process.env.DESTINATION_DOWN);
+      const trashPath = resolvePath(process.env.TRASH_PATH);
+
+      const result = {
+        mode: isPlus ? 'TinderPlus' : 'Tinder',
+        dryRun: isDryRun,
+        sourceRoot: {
+          path: sourceRoot,
+          exists: await checkExists(sourceRoot)
+        },
+        destinations: {
+          left: {
+            label: getLabel(process.env.DESTINATION_LEFT_LABEL, leftPath),
+            path: leftPath,
+            exists: leftPath ? await checkExists(leftPath) : false,
+            isConfigured: !!leftPath
+          },
+          right: {
+            label: getLabel(process.env.DESTINATION_RIGHT_LABEL, rightPath),
+            path: rightPath,
+            exists: rightPath ? await checkExists(rightPath) : false,
+            isConfigured: !!rightPath
+          },
+          up: {
+            label: getLabel(process.env.DESTINATION_UP_LABEL, upPath),
+            path: upPath,
+            exists: upPath ? await checkExists(upPath) : false,
+            isConfigured: !!upPath
+          },
+          down: {
+            label: getLabel(process.env.DESTINATION_DOWN_LABEL, downPath),
+            path: downPath,
+            exists: downPath ? await checkExists(downPath) : false,
+            isConfigured: !!downPath
+          },
+          trash: {
+            label: getLabel(process.env.DESTINATION_TRASH_LABEL, trashPath),
+            path: trashPath,
+            exists: trashPath ? await checkExists(trashPath) : true,
+            isDelete: !trashPath,
+            isConfigured: true // Trash is always "active" (either move or delete)
+          },
+        },
+        queue: {
+          softThreshold: Number(process.env.QUEUE_SOFT_THRESHOLD) || 25,
+          hardThreshold: Number(process.env.QUEUE_HARD_THRESHOLD) || 50,
+          resumeThreshold: Number(process.env.QUEUE_RESUME_THRESHOLD) || 10,
+        }
+      };
+
+      api.log.info({ msg: 'Resolved settings', destinations: result.destinations });
+      return result;
+    });
+
+    api.post('/settings', async (request) => {
+      const body = request.body as any;
+
+      const upsert = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+
+      if (body.mode) upsert.run('mode', JSON.stringify(body.mode));
+      if (body.dryRun !== undefined) upsert.run('dryRun', JSON.stringify(body.dryRun));
+
+      return { status: 'ok' };
+    });
+
+    api.get('/history', async () => {
+      const rows = db.prepare('SELECT * FROM actions ORDER BY createdAt DESC LIMIT 100').all();
+      return rows;
+    });
+
+    api.get('/history/thumbnail/:actionId', async (request, reply) => {
+      const { actionId } = request.params as { actionId: string };
+      const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(actionId) as any;
+
+      if (!action) return reply.status(404).send({ error: 'Action not found' });
+
+      // If completed and not dry-run, it's at the destination.
+      // If pending/processing or dry-run, it's still at the source.
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+      const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+      let filePath = action.sourcePath;
+      if (action.status === 'completed' && !isDryRun) {
+        if (action.destinationPath !== 'SYSTEM DELETE') {
+          filePath = path.join(action.destinationPath, action.imageId);
         }
       }
 
-      return {
-        filename: id,
-        fullPath: filePath,
-        size: stats.size,
-        modifiedAt: stats.mtime,
-        width,
-        height,
-        exif: exif || {},
+      try {
+        await fs.access(filePath);
+        return reply.sendFile(path.basename(filePath), path.dirname(filePath));
+      } catch (err) {
+        return reply.status(404).send({ error: 'Image file no longer accessible.' });
+      }
+    });
+
+    api.post('/actions/undo', async (request, reply) => {
+      // Find the last action that is either 'completed' or 'pending'/'processing'
+      const lastAction = db.prepare(`
+        SELECT * FROM actions
+        WHERE status IN ('completed', 'pending', 'processing')
+        ORDER BY createdAt DESC LIMIT 1
+      `).get() as any;
+
+      if (!lastAction) {
+        return reply.status(404).send({ error: 'No recent actions found to undo.' });
+      }
+
+      try {
+        if (lastAction.status === 'completed') {
+          const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+          const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+          if (!isDryRun) {
+            const currentPath = lastAction.actionType === 'trash' && lastAction.destinationPath === 'SYSTEM DELETE'
+              ? null // If it was a real delete, we can't undo it easily if unlinked
+              : path.join(lastAction.destinationPath, lastAction.imageId);
+
+            if (lastAction.actionType === 'trash' && lastAction.destinationPath === 'SYSTEM DELETE') {
+               // In current implementation, SYSTEM DELETE uses fs.unlink.
+               // True undo would require a recycle bin. For now, we only support undo for moves.
+               return reply.status(400).send({ error: 'Cannot undo a permanent deletion.' });
+            }
+
+            // Move back to source
+            await safeMove(currentPath!, lastAction.sourcePath);          }
+        }
+
+        // Mark as undone or just delete it
+        db.prepare('DELETE FROM actions WHERE id = ?').run(lastAction.id);
+
+        return { status: 'undone', actionId: lastAction.id, imageId: lastAction.imageId };
+      } catch (err: any) {
+        api.log.error(`Undo failed: ${err.message}`);
+        return reply.status(500).send({ error: `Undo failed: ${err.message}` });
+      }
+    });
+
+    api.post('/images/action', async (request, reply) => {
+      const { id, imageId, destinationPath, actionType, direction } = request.body as {
+        id: string;
+        imageId: string;
+        destinationPath: string;
+        actionType: 'move' | 'trash' | 'copy';
+        direction: string;
       };
-    } catch (err) {
-      app.log.error(`Error reading metadata for ${id}: ${err}`);
-      return reply.status(404).send({ error: 'Image not found' });
-    }
-  });
+
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('dryRun') as { value: string } | undefined;
+      const isDryRun = row ? JSON.parse(row.value) : (process.env.DRY_RUN_MODE === 'true');
+
+      const sourcePath = path.join(sourceRoot, imageId);
+
+      // Safety check: image must exist
+      try {
+        await fs.access(sourcePath);
+      } catch {
+        return reply.status(404).send({ error: `Image not found: ${imageId}` });
+      }
+
+      // Insert initial record (M6/M9) - Enqueue as 'pending'
+      const insertAction = db.prepare(`
+        INSERT INTO actions (id, imageId, sourcePath, destinationPath, actionType, direction, status, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const createdAt = new Date().toISOString();
+      insertAction.run(id, imageId, sourcePath, destinationPath, actionType, direction, 'pending', createdAt);
+
+      return { status: 'enqueued', id };
+    });
+
+    api.get('/images/next', async () => {
+      try {
+        const files = await fs.readdir(sourceRoot);
+        const imageFiles = files.filter(f =>
+          ALL_SUPPORTED_EXTENSIONS.includes(path.extname(f).toLowerCase())
+        );
+
+        api.log.info(`Found ${imageFiles.length} files in ${sourceRoot}`);
+
+        const images: ImageRecord[] = await Promise.all(
+          imageFiles.map(async (filename) => {
+            const stats = await fs.stat(path.join(sourceRoot, filename));
+            return {
+              id: filename,
+              filename,
+              sourcePath: filename,
+              extension: path.extname(filename),
+              sizeBytes: stats.size,
+            };
+          })
+        );
+
+        return images;
+      } catch (err) {
+        api.log.error(`Error reading source directory ${sourceRoot}: ${err}`);
+        return [];
+      }
+    });
+
+    api.get('/images/:id/metadata', async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const filePath = path.join(sourceRoot, id);
+
+      try {
+        const stats = await fs.stat(filePath);
+        // exifr.parse with true fetches all markers including dimensions from the file header
+        const exif = await exifr.parse(filePath, true).catch(() => ({}));
+
+        // Robust dimension extraction with image-size fallback
+        let width = exif?.ExifImageWidth || exif?.ImageWidth || exif?.pixelXDimension || null;
+        let height = exif?.ExifImageHeight || exif?.ImageHeight || exif?.pixelYDimension || null;
+
+        if (!width || !height) {
+          try {
+            const buf = await fs.readFile(filePath);
+            const dimensions = sizeOf(buf);
+            width = dimensions.width || null;
+            height = dimensions.height || null;
+          } catch (e) {
+            api.log.error(`Failed to get dimensions using image-size for ${id}: ${e}`);
+          }
+        }
+
+        return {
+          filename: id,
+          fullPath: filePath,
+          size: stats.size,
+          modifiedAt: stats.mtime,
+          width,
+          height,
+          exif: exif || {},
+        };
+      } catch (err) {
+        api.log.error(`Error reading metadata for ${id}: ${err}`);
+        return reply.status(404).send({ error: 'Image not found' });
+      }
+    });
+  }, { prefix: '/api' });
 
   return app;
 }
