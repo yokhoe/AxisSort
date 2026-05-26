@@ -9,7 +9,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, History, CheckCircle2, Trash2, ArrowRight, Clock } from 'lucide-react';
-import { ActionIntent } from '@coord-sort/shared';
+import { ActionIntent } from '@axissort/shared';
 
 interface HistoryDrawerProps {
   history: ActionIntent[];

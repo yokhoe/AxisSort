@@ -15,7 +15,7 @@ import fs from 'fs/promises';
 import exifr from 'exifr';
 import { imageSize as sizeOf } from 'image-size';
 import Database from 'better-sqlite3';
-import { ImageRecord, ALL_SUPPORTED_EXTENSIONS } from '@coord-sort/shared';
+import { ImageRecord, ALL_SUPPORTED_EXTENSIONS } from '@axissort/shared';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = fastify({
@@ -27,9 +27,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   const projectRoot = path.resolve(__dirname, '../../../');
 
   // Database Initialization (M9)
-  const dbPath = path.isAbsolute(process.env.DATABASE_PATH || './data/coord-sort.db')
+  const dbPath = path.isAbsolute(process.env.DATABASE_PATH || './data/axissort.db')
     ? process.env.DATABASE_PATH!
-    : path.resolve(projectRoot, process.env.DATABASE_PATH || './data/coord-sort.db');
+    : path.resolve(projectRoot, process.env.DATABASE_PATH || './data/axissort.db');
 
   // Ensure data directory exists
   await fs.mkdir(path.dirname(dbPath), { recursive: true });

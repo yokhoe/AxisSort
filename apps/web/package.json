@@ -1,5 +1,5 @@
 {
-  "name": "@coord-sort/web",
+  "name": "@axissort/web",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@coord-sort/shared": "*",
+    "@axissort/shared": "*",
     "clsx": "^2.1.0",
     "fastify": "5.8.5",
     "framer-motion": "^11.0.12",

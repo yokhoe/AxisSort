@@ -8,7 +8,7 @@
 
 import React, { useState } from 'react';
 import { motion, PanInfo, useMotionValue, useTransform, animate } from 'framer-motion';
-import { ImageRecord, SwipeDirection } from '@coord-sort/shared';
+import { ImageRecord, SwipeDirection } from '@axissort/shared';
 
 interface SwipeCardProps {
   image: ImageRecord;

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> Project playbook for **Coord-Sort**
+> Project playbook for **AxisSort**
 >
 > This document is the source of truth for planning, building, testing, and packaging the project.
 > It is written to be beginner-friendly and should help future contributors, coding agents, and your future self make steady progress without unnecessary pain.
@@ -10,10 +10,10 @@
 ## 1. Project Identity
 
 ### Project name
-**Coord-Sort**
+**AxisSort**
 
 ### Project idea
-Coord-Sort is a Tinder-style image sorting web application.
+AxisSort is a Tinder-style image sorting web application.
 Users review images one at a time as a photo stack and assign each image to a destination by swiping or using keyboard shortcuts.
 
 ### Core UX goals
@@ -38,7 +38,7 @@ Users review images one at a time as a photo stack and assign each image to a de
 - The app should eventually be deployable as a **Docker Compose** service.
 
 ### Product philosophy
-Coord-Sort is not meant to be a giant photo management platform.
+AxisSort is not meant to be a giant photo management platform.
 It is meant to be:
 - focused
 - fast
@@ -85,7 +85,7 @@ This stack was chosen because it gives:
 - an easy path from local development to homelab deployment
 
 ### Architectural emphasis
-Coord-Sort should be built as a **server-managed local web app**.
+AxisSort should be built as a **server-managed local web app**.
 
 That means:
 - the frontend is the control surface and visual experience
@@ -287,7 +287,7 @@ It should only consume normalized paths from configuration.
 Use a monorepo layout.
 
 ```text
-coord-sort/
+axissort/
   AGENTS.md
   README.md
   package.json
@@ -859,8 +859,8 @@ Install VS Code and the recommended extensions.
 Example:
 
 ```bash
-mkdir coord-sort
-cd coord-sort
+mkdir axissort
+cd axissort
 ```
 
 ### Step 6: initialize Git repository
@@ -923,8 +923,8 @@ Install VS Code and the recommended extensions.
 Example in PowerShell:
 
 ```powershell
-mkdir coord-sort
-cd coord-sort
+mkdir axissort
+cd axissort
 ```
 
 ### Step 5: initialize Git repository
@@ -962,7 +962,7 @@ APP_PORT=3001
 WEB_PORT=5173
 
 # Database
-DATABASE_PATH=./data/coord-sort.db
+DATABASE_PATH=./data/axissort.db
 
 # Development library paths
 SOURCE_ROOT=./dev-library/source
@@ -1186,7 +1186,7 @@ A small working slice creates confidence and reduces confusion.
 
 ## 29. Definition of Done for v1
 
-Coord-Sort v1 is complete when it can:
+AxisSort v1 is complete when it can:
 - load a configured source directory
 - support 2-way and 4-way sorting
 - show images as stacked cards
@@ -1218,7 +1218,7 @@ If there is uncertainty, choose the solution that is:
 - easier to debug
 - easier to explain later
 
-That is the spirit of Coord-Sort.
+That is the spirit of AxisSort.
 
 ---
 

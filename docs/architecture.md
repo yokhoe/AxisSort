@@ -1,6 +1,6 @@
 # Architecture
 
-Coord-Sort is built as a **server-managed local web app** using a monorepo layout.
+AxisSort is built as a **server-managed local web app** using a monorepo layout.
 
 ## High-Level Flow
 

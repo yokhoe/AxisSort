@@ -1,5 +1,5 @@
 {
-  "name": "coord-sort",
+  "name": "axissort",
   "version": "1.0.0",
   "description": "A Tinder-style image sorting web application.",
   "private": true,

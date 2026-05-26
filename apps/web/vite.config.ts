@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@coord-sort/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+      '@axissort/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
     },
   },
   server: {

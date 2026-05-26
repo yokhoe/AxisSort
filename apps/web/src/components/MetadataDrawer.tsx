@@ -9,7 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, HardDrive, Maximize2, Folder, Camera, Zap, FileImage, MapPin } from 'lucide-react';
-import { ImageRecord } from '@coord-sort/shared';
+import { ImageRecord } from '@axissort/shared';
 
 interface MetadataDrawerProps {
   image: ImageRecord | null;

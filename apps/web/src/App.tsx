@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Settings, Trash2, Undo2, AlertCircle, Sun, Moon, Monitor, MoveHorizontal, Move, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { ImageRecord, SwipeDirection, ActionIntent } from '@coord-sort/shared';
+import { ImageRecord, SwipeDirection, ActionIntent } from '@axissort/shared';
 import { SwipeCard } from './components/SwipeCard';
 import { MetadataDrawer } from './components/MetadataDrawer';
 import { SettingsDrawer } from './components/SettingsDrawer';
@@ -56,7 +56,7 @@ const App: React.FC = () => {
 
   // Initialize theme from localStorage immediately
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
-    return (localStorage.getItem('coord-sort-theme') as any) || 'dark';
+    return (localStorage.getItem('axissort-theme') as any) || 'dark';
   });
 
   // Calculate if dark mode should be active
@@ -75,7 +75,7 @@ const App: React.FC = () => {
     } else {
       html.classList.remove('dark');
     }
-    localStorage.setItem('coord-sort-theme', theme);
+    localStorage.setItem('axissort-theme', theme);
   }, [isDarkActive, theme]);
 
   const fetchData = useCallback(async () => {
@@ -288,8 +288,7 @@ const App: React.FC = () => {
         </button>
 
         <div className="flex flex-col items-center opacity-30 pointer-events-none select-none">
-          <h1 className="text-xl font-black tracking-[0.2em] leading-none text-slate-900 dark:text-slate-100 uppercase">COORD-SORT</h1>
-          <span className="text-[9px] font-bold tracking-[0.4em] mt-1.5 text-slate-500 dark:text-slate-400">VERSION 1.0.0</span>
+          <h1 className="text-xl font-black tracking-[0.2em] leading-none text-slate-900 dark:text-slate-100 uppercase">AXISSORT</h1>          <span className="text-[9px] font-bold tracking-[0.4em] mt-1.5 text-slate-500 dark:text-slate-400">VERSION 1.0.0</span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -362,7 +361,7 @@ const App: React.FC = () => {
           /* Initial Empty State */
           <div className="w-full max-w-md aspect-[3/4] bg-white/40 dark:bg-slate-900/40 rounded-[2.5rem] flex items-center justify-center border border-black/5 dark:border-white/10 backdrop-blur-md shadow-xl">
             <div className="text-center p-8">
-              <p className="text-slate-400 dark:text-slate-600 text-xs font-black uppercase tracking-[0.3em] mb-4">Welcome to Coord-Sort</p>
+              <p className="text-slate-400 dark:text-slate-600 text-xs font-black uppercase tracking-[0.3em] mb-4">Welcome to AxisSort</p>
               <p className="text-slate-600 dark:text-slate-300 text-lg font-bold uppercase tracking-tight">Library Empty</p>
               <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-2 uppercase tracking-widest leading-relaxed">
                 Add images to your source directory<br/>

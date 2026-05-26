@@ -1,6 +1,6 @@
-# Coord-Sort
+# AxisSort
 
-**Coord-Sort** is a Tinder-style image sorting web application designed for speed, safety, and Homelab friendliness. Users review images one at a time as a **photo stack** and assign them to destination directories via swipes, keyboard shortcuts, or clicks.
+**AxisSort** is a Tinder-style image sorting web application designed for speed, safety, and Homelab friendliness. Users review images one at a time as a **photo stack** and assign them to destination directories via swipes, keyboard shortcuts, or clicks.
 
 ---
 
@@ -19,7 +19,7 @@
 
 ## 🏗️ The "Breather" System (Queue & Back-pressure)
 
-**Coord-Sort** is built for speed. To keep the experience fluid, the app handles the heavy lifting in the background so you can keep swiping without waiting for your disk to finish every move.
+**AxisSort** is built for speed. To keep the experience fluid, the app handles the heavy lifting in the background so you can keep swiping without waiting for your disk to finish every move.
 
 - **Background Sorting**: When you swipe, the app instantly shows the next photo. The actual file moving or deleting happens silently behind the scenes.
 - **Automatic Breather**: If you're swiping super fast, you might see a quick **"Momentary Pause"** overlay. This is just the app giving your computer a second to finish its current work before you continue.
@@ -33,7 +33,7 @@ This ensures you can sort as fast as your eyes can see, without ever worrying ab
 
 ## 🗄️ Data Integrity & Persistence (SQLite)
 
-While **Coord-Sort** feels like a lightweight web app, it uses a local SQLite database (`data/coord-sort.db`) to ensure your sorting work is never lost:
+While **AxisSort** feels like a lightweight web app, it uses a local SQLite database (`data/axissort.db`) to ensure your sorting work is never lost:
 
 - **Bulletproof Queue**: Swipes are recorded on the server immediately. Even if you close your browser or lose your connection, the server keeps processing your "to-do list" until every file is safely moved.
 - **Session Resume**: The app remembers exactly where you were. You can stop halfway through a 1,000-image folder and come back days later to the same spot.
@@ -78,8 +78,8 @@ While **Coord-Sort** feels like a lightweight web app, it uses a local SQLite da
 ### 2. Setup
 ```bash
 # Clone the repository
-git clone https://github.com/yokhoe/Coord-Sort.git
-cd Coord-Sort
+git clone https://github.com/yokhoe/AxisSort.git
+cd AxisSort
 
 # Install dependencies
 npm install
@@ -96,7 +96,7 @@ The frontend will be available at `http://localhost:5173` and the backend at `ht
 
 ## 🐳 Docker Deployment (Recommended)
 
-The fastest way to get **Coord-Sort** running is using our pre-built image. We've included a production-ready `docker-compose.yml` in the root directory to get you started in seconds.
+The fastest way to get **AxisSort** running is using our pre-built image. We've included a production-ready `docker-compose.yml` in the root directory to get you started in seconds.
 
 ### 1. Prepare your Environment
 Copy the example environment file and set your sorting preferences:
@@ -123,4 +123,4 @@ The application will be live at `http://localhost:3001`.
 ---
 
 ## 🛡️ Product Philosophy
-Coord-Sort is not a photo management platform; it is a **focused tool** for one job: getting your unsorted images into the right folders as fast and safely as possible. It prioritizes data integrity and understandable local-first architecture.
+AxisSort is not a photo management platform; it is a **focused tool** for one job: getting your unsorted images into the right folders as fast and safely as possible. It prioritizes data integrity and understandable local-first architecture.

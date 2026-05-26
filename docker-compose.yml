@@ -1,15 +1,15 @@
 version: "3.8"
 
 services:
-  coord-sort:
+  axissort:
     build: .
-    image: ghcr.io/yokhoe/coord-sort:main
-    container_name: coord-sort
+    image: ghcr.io/yokhoe/axissort:main
+    container_name: axissort
     ports:
       - "3001:3001"
     env_file: .env
     environment:
-      - DATABASE_PATH=/app/data/coord-sort.db
+      - DATABASE_PATH=/app/data/axissort.db
       - SOURCE_ROOT=/photos/source
       - DESTINATION_LEFT=/photos/sorted/left
       - DESTINATION_RIGHT=/photos/sorted/right
