@@ -56,6 +56,25 @@ export async function buildApp(): Promise<FastifyInstance> {
     );
   `);
 
+  const sourceRoot = path.isAbsolute(process.env.SOURCE_ROOT || '')
+    ? process.env.SOURCE_ROOT!
+    : path.resolve(projectRoot, process.env.SOURCE_ROOT || './dev-library/source');
+
+  // Helper for cross-device moves (M9: Portability)
+  const safeMove = async (src: string, dest: string) => {
+    try {
+      await fs.rename(src, dest);
+    } catch (err: any) {
+      if (err.code === 'EXDEV') {
+        // Fallback for cross-device move: Copy then Delete
+        await fs.copyFile(src, dest);
+        await fs.unlink(src);
+      } else {
+        throw err;
+      }
+    }
+  };
+
   // Register API routes with /api prefix (M9: Prioritized)
   await app.register(async (api) => {
     api.get('/settings', async () => {
