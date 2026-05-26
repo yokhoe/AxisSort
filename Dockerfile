@@ -27,8 +27,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Install gosu and shadow (for useradd/groupadd) to support PUID/PGID
-RUN apt-get update && apt-get install -y gosu shadow && rm -rf /var/lib/apt/lists/*
+# Install gosu and passwd (for useradd/groupadd) to support PUID/PGID
+RUN apt-get update && apt-get install -y gosu passwd && rm -rf /var/lib/apt/lists/*
 
 # Install only production dependencies
 COPY package*.json ./
