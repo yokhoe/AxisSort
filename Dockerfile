@@ -27,6 +27,9 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Install gosu and shadow (for useradd/groupadd) to support PUID/PGID
+RUN apt-get update && apt-get install -y gosu shadow && rm -rf /var/lib/apt/lists/*
+
 # Install only production dependencies
 COPY package*.json ./
 COPY packages/shared/package*.json ./packages/shared/
@@ -44,7 +47,13 @@ COPY --from=builder /app/apps/web/dist ./apps/web/dist
 # Ensure data directory exists for default SQLite path
 RUN mkdir -p data
 
+# Add entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3001
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Run the API server
 CMD ["node", "apps/api/dist/server.js"]
